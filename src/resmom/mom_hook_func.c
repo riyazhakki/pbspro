@@ -798,6 +798,8 @@ run_hook(hook *phook, unsigned int event_type, mom_hook_input_t *hook_input,
 				log_err(errno, __func__, msg_err_malloc);
 				return (-1);
 			}
+			if (event_type == HOOK_EVENT_EXECJOB_END)
+				ptask->wt_parm2 = hook_input;
 			return (0);	/* no hook output file at this time */
 		}
 
@@ -3075,6 +3077,180 @@ record_job_last_hook_executed(unsigned int hook_event,
 	fclose(fp);
 }
 
+ int run_execjob_end_hooks(struct work_task *);
+/**
+ * @brief
+ * Process execjob_end hook 
+ * 
+ * @param[in] 
+ * @param[out]
+ */
+void
+post_execjob_end_hook(struct work_task *ptask) {
+
+	assert(ptask->wt_parm1 != NULL);
+
+	hook *phook						= (hook *)ptask->wt_parm1;
+	mom_hook_input_t *hook_input 	= (mom_hook_input_t *) ptask->wt_parm2;
+	job *pjob						= (job *) hook_input->pjob;
+	struct work_task *new_task;
+	int	hook_error_flag = 0;
+	
+	int	 wstat = ptask->wt_aux;
+	pid_t	 mypid = ptask->wt_event;
+
+	/* Check hook exit status */
+	if (wstat != 0) {
+		snprintf(log_buffer, LOG_BUF_SIZE-1,
+			"Non-zero exit status %d encountered for execjob_end hook",
+			wstat);
+		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
+			LOG_ERR, phook->hook_name, log_buffer);
+		hook_error_flag = 1;	/* hook results are invalid */
+	}
+
+	/* go back to mom's private directory */
+	if (chdir(mom_home) != 0) {
+		log_event(PBSEVENT_DEBUG2,
+			PBS_EVENTCLASS_HOOK, LOG_WARNING, phook->hook_name,
+			"unable to go back to mom_home");
+	}
+
+	log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_HOOK,
+		LOG_INFO, phook->hook_name, "finished");
+
+/*
+	char			*log_id = NULL;
+	int			log_type = 0;
+	int			log_class = 0;
+
+	log_id = pjob->ji_qs.ji_jobid;
+	log_type = PBSEVENT_JOB;
+	log_class = PBS_EVENTCLASS_JOB;
+	*/
+
+	int		accept_flag = 1;
+	int 	reject_flag = 0;
+	int 	reject_rerunjob = 0;
+	int		reject_deletejob = 0;
+	int 	reboot_flag = 0;
+	char	reject_msg[HOOK_MSG_SIZE+1] = {'\0',};
+	char	reboot_cmd[HOOK_BUF_SIZE]  = {'\0',};
+	char	hook_outfile[MAXPATHLEN+1];
+
+
+	pbs_list_head		vnl_changes;
+	CLEAR_HEAD(vnl_changes);
+
+	/* hook results path */
+	snprintf(hook_outfile, MAXPATHLEN, FMT_HOOK_OUTFILE,
+		path_hooks_workdir,
+		HOOKSTR_EXECJOB_END,   /*Todo find right macro */
+		/*HOOKSTR_EXECHOST_PERIODIC,*/
+		phook->hook_name, mypid);
+
+	if (get_hook_results(hook_outfile, &accept_flag, &reject_flag,
+		reject_msg, sizeof(reject_msg), &reject_rerunjob,
+		&reject_deletejob, &reboot_flag, reboot_cmd,
+		HOOK_BUF_SIZE, &vnl_changes, pjob, phook, 0, NULL) != 0) {
+		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
+			LOG_ERR, phook->hook_name,
+			"Failed to get hook results");
+		vna_list_free(vnl_changes);
+		hook_error_flag = 1;
+	}
+
+	if ((hook_error_flag == 1) || (accept_flag == 0)) {
+
+		snprintf(log_buffer, sizeof(log_buffer),
+			"%s request rejected by '%s'",
+			"execjob_end", phook->hook_name);
+		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
+			LOG_ERR, phook->hook_name, log_buffer);
+		if ((reject_msg != NULL) && (reject_msg[0] != '\0')) {
+			snprintf(log_buffer, sizeof(log_buffer), "%s",
+				reject_msg);
+			/* log also the custom reject message */
+			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
+				LOG_ERR, phook->hook_name, log_buffer);
+		}
+	}
+
+	/* TODO: process hook ouput if accepted create task for next hook */
+	new_task = set_task(WORK_Immed, 0,(void*)run_execjob_end_hooks, hook_input); 
+	new_task->wt_parm2 = phook;
+	/*
+		if (!set_task(WORK_Timed, time_now + 5, (void *)run_execjob_end_hooks, hook_input))
+			log_err(errno, __func__, "Unable to set task for run_execjob_end_hooks");
+			*/
+	return;
+}
+
+/**
+ * @brief
+ * Process execjob_end hook
+ * 
+ * @param[in] 
+ * @param[out]
+ */
+ int
+ run_execjob_end_hooks(struct work_task *ptask) {
+
+	job					*pjob = NULL;
+	pbs_list_head		*head_ptr = NULL;
+	hook				*phook = NULL;
+
+	mom_hook_input_t *hook_input = (mom_hook_input_t *) ptask->wt_parm1;
+
+	if (ptask->wt_parm2 == NULL){
+		head_ptr = &svr_execjob_end_hooks;
+		phook = (hook *)GET_NEXT(*head_ptr);
+	}else {
+		phook	= (hook *)ptask->wt_parm2;
+		phook 	= (hook *)GET_NEXT(phook->hi_execjob_end_hooks);
+	}
+
+	while (phook) {
+
+		if (phook->enabled == FALSE) {
+			phook = (hook *)GET_NEXT(phook->hi_execjob_end_hooks);
+			continue;
+		}
+
+		if (phook->script == NULL) {
+			log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_HOOK,
+			LOG_ERR, phook->hook_name,
+				"Hook has no script content. Skipping hook.");
+			phook = (hook *)GET_NEXT(phook->hi_execjob_end_hooks);
+			continue;
+		}
+		break;
+	}
+	if (!phook) {
+		if (ptask->wt_parm2 != NULL) {
+			struct batch_request *preq;
+			pjob = hook_input->pjob;
+			preq = pjob->ji_preq;
+
+			pjob->ji_preq = NULL;
+			(void)mom_deljob_wait(pjob);
+			reply_ack(preq);
+			free(hook_input);
+		}
+		return 1;
+ 	}
+
+	char	hook_infile[MAXPATHLEN+1] = {'\0',};
+	char	hook_outfile[MAXPATHLEN+1] = {'\0',};
+	char	hook_datafile[MAXPATHLEN+1] = {'\0',};
+
+	run_hook(phook, phook->event, hook_input,
+			PBS_MOM_SERVICE_NAME, mom_host, 0, post_execjob_end_hook,
+			hook_infile, hook_outfile, hook_datafile, MAXPATHLEN+1  );
+
+	return 0;
+ }
+
 /**
  * @brief
  *	Process hook scripts based on request type.
@@ -3191,6 +3367,25 @@ mom_process_hooks(unsigned int hook_event, char *req_user, char *req_host,
 			break;
 		default:
 			return (-1); /* unexpected event encountered */
+	}
+
+	if (hook_event == HOOK_EVENT_EXECJOB_END) {
+
+		struct 			work_task task;
+		task.wt_parm1 = (void *)hook_input;
+		task.wt_parm2 = NULL;
+		if (!run_execjob_end_hooks(&task)) {
+			/* on an execjob_end, need to set the job's exit value.     */
+			/* Set it only once, and only if there's a hook to execute  */
+			/* since we're affecting the job directly.                  */
+
+			pjob->ji_wattr[(int)JOB_ATR_exit_status].at_val.at_long = \
+				pjob->ji_qs.ji_un.ji_momt.ji_exitstat;
+			pjob->ji_wattr[(int)JOB_ATR_exit_status].at_flags |= (ATR_VFLAG_SET | ATR_VFLAG_MODCACHE);
+
+			return (3); /* hook script started in child process*/
+		}
+		return (1);
 	}
 
 	if (hook_msg != NULL)
@@ -3383,7 +3578,7 @@ mom_process_hooks(unsigned int hook_event, char *req_user, char *req_host,
 			/* hook backgrounded */
 			continue;
 
-		/* We're in a non-periodic hook */
+		/* We're in a non-periodic and non-execjob_end hook */
 		accept_flag = 1;
 		reject_flag = 0;
 		reject_rerunjob = 0;

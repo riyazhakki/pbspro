@@ -572,11 +572,8 @@ req_deletejob(struct batch_request *preq)
 #endif
 	job 		*pjob;
 	char 		hook_msg[HOOK_MSG_SIZE+1];
-	hook		*last_phook = NULL;
-	unsigned int	hook_fail_action = 0;
-	mom_hook_input_t	hook_input;
-	mom_hook_output_t	hook_output;
-	int		reject_errcode = 0;
+	mom_hook_input_t	*hook_input = NULL; 
+	mom_hook_output_t	*hook_output = NULL;
 	char *jobid = NULL;
 
 	jobid = preq->rq_ind.rq_delete.rq_objname;
@@ -619,23 +616,17 @@ req_deletejob(struct batch_request *preq)
 	 * mom_deljob_wait() sets substate to
 	 * prevent sending more OBIT messages
 	 */
+	pjob->ji_preq = preq;
+	hook_input = (mom_hook_input_t *) malloc (sizeof(mom_hook_input_t));
+	mom_hook_input_init(hook_input);
+	hook_input->pjob = pjob;
 
-#if MOM_ALPS
-	pjob->ji_preq = preq;	/* needed when canceling ALPS */
-#else
-	pjob->ji_preq = NULL;
-#endif
-	mom_hook_input_init(&hook_input);
-	hook_input.pjob = pjob;
+	if ( mom_process_hooks(HOOK_EVENT_EXECJOB_END,
+		PBS_MOM_SERVICE_NAME, mom_host, hook_input,
+		hook_output, hook_msg, sizeof(hook_msg), 1) == 3 )
 
-	mom_hook_output_init(&hook_output);
-	hook_output.reject_errcode = &reject_errcode;
-	hook_output.last_phook = &last_phook;
-	hook_output.fail_action = &hook_fail_action;
+		return;
 
-	(void)mom_process_hooks(HOOK_EVENT_EXECJOB_END,
-		PBS_MOM_SERVICE_NAME, mom_host, &hook_input,
-		&hook_output, hook_msg, sizeof(hook_msg), 1);
 #if MOM_ALPS
 	(void)mom_deljob_wait(pjob);
 
@@ -649,6 +640,7 @@ req_deletejob(struct batch_request *preq)
 	 */
 	pjob->ji_preq = NULL;
 #else
+	pjob->ji_preq = NULL;
 	if (mom_deljob_wait(pjob) > 0) {
 		/* wait till sisters respond */
 		pjob->ji_preq = preq;
@@ -662,6 +654,7 @@ req_deletejob(struct batch_request *preq)
 		reply_ack(preq);	/* no sisters, reply now  */
 	}
 #endif
+	free(hook_input);
 }
 
 /**
