@@ -53,7 +53,9 @@ class TestPbsExecjobEnd(TestFunctional):
                           "e = pbs.event()\n"
                           "pbs.logjobmsg(e.job.id, \
                                          'executed execjob_end hook')\n"
-                          "time.sleep(20)\n"
+                          "time.sleep(10)\n"
+                          "pbs.logjobmsg(e.job.id, \
+                                         'execjob_end hook ended')\n"
                           "e.accept()\n")
 
     def test_execjob_end_non_blocking(self):
@@ -69,30 +71,32 @@ class TestPbsExecjobEnd(TestFunctional):
                      "pbs.logmsg(pbs.LOG_DEBUG, \
                                  'executed exechost_periodic hook')\n"
                      "e.accept()\n")
-        attr = {'event': 'exechost_periodic', 'freq': '4', 'enabled': 'True'}
+        attr = {'event': 'exechost_periodic', 'freq': '3', 'enabled': 'True'}
         attrj = {'Resource_List.select': 'ncpus=1'}
         j = Job(TEST_USER, attrs=attrj)
-        j.set_sleep_time(5)
+        j.set_sleep_time(1)
         self.server.create_import_hook(hook_name, attr, hook_body)
         jid = self.server.submit(j)
         self.mom.log_match("Job;%s;executed execjob_end hook" % jid,
                            n=100, max_attempts=10, interval=2)
         self.mom.log_match("executed exechost_periodic hook",
                            n=100, max_attempts=10, interval=2)
+        self.mom.log_match("Job;%s;execjob_end hook ended" % jid,
+                           n=100, max_attempts=10, interval=2)
 
     def test_execjob_end_hook_order_and_reject(self):
         """
-        Test a execjob_end hook with mutiple hooks with
-        different order for a job job reject call
+        Test with mutiple execjob_end hooks with with
+        different order for a job with one of the hooks rejecting the job.
         """
-        hook_name = "execjob_end_logmsg1"
+        hook_name1 = "execjob_end_logmsg1"
         hook_body = ("import pbs\n"
                      "e = pbs.event()\n"
                      "pbs.logjobmsg(e.job.id, \
-                                  'executed execjob_end hook')\n"
+                                  'executed %s hook' % e.hook_name)\n"
                      "e.accept()\n")
         attr = {'event': 'execjob_end', 'order': '1', 'enabled': 'True'}
-        self.server.create_import_hook(hook_name, attr, hook_body)
+        self.server.create_import_hook(hook_name1, attr, hook_body)
         hook_name = "execjob_end_logmsg2"
         hook_body1 = ("import pbs\n"
                       "e = pbs.event()\n"
@@ -100,32 +104,37 @@ class TestPbsExecjobEnd(TestFunctional):
                       "e.reject('Job is rejected')\n")
         attr = {'event': 'execjob_end', 'order': '2', 'enabled': 'True'}
         self.server.create_import_hook(hook_name, attr, hook_body1)
-        hook_name = "execjob_end_logmsg3"
+        hook_name2 = "execjob_end_logmsg3"
         attr = {'event': 'execjob_end', 'order': '170', 'enabled': 'True'}
-        self.server.create_import_hook(hook_name, attr, hook_body)
+        self.server.create_import_hook(hook_name2, attr, hook_body)
         attrj = {'Resource_List.select': 'ncpus=1'}
         j = Job(TEST_USER, attrs=attrj)
-        j.set_sleep_time(5)
+        j.set_sleep_time(1)
         jid = self.server.submit(j)
-        self.mom.log_match("Job;%s;executed execjob_end hook" % jid,
+        self.mom.log_match("Job;%s;executed %s hook" % (jid, hook_name1),
                            n=100, max_attempts=10, interval=2)
         self.mom.log_match("Job;%s;Job is rejected" % jid,
                            n=100, max_attempts=10, interval=2)
+        self.mom.log_match("Job;%s;executed %s hook" % (jid, hook_name2),
+                           n=100, max_attempts=10, interval=2, existence=False)
 
     def test_execjob_end_multi_job(self):
         """
-        Test a execjob_end hook for non-blocking of mom  with mutiple jobs
+        Test a execjob_end hook for non-blocking of mom with mutiple jobs
         """
         hook_name = "execjob_end_logmsg4"
         self.server.create_import_hook(hook_name, self.attr, self.hook_body)
         attrj = {'Resource_List.select': 'ncpus=1'}
         j = Job(TEST_USER, attrs=attrj)
-        j.set_sleep_time(5)
+        j.set_sleep_time(1)
         jid1 = self.server.submit(j)
-        j.set_sleep_time(8)
+        j.set_sleep_time(1)
         jid2 = self.server.submit(j)
         self.mom.log_match("Job;%s;executed execjob_end hook" % jid1,
                            n=100, max_attempts=10, interval=2)
         self.mom.log_match("Job;%s;executed execjob_end hook" % jid2,
                            n=100, max_attempts=10, interval=2)
-        time.sleep(20)
+        self.mom.log_match("Job;%s;execjob_end hook ended" % jid1,
+                           n=100, max_attempts=10, interval=2)
+        self.mom.log_match("Job;%s;execjob_end hook ended" % jid2,
+                           n=100, max_attempts=10, interval=2)
