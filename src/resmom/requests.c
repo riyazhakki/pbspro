@@ -548,6 +548,8 @@ return_file(job *pjob, enum job_file which, int sock)
 		return (-1);
 }
 
+#define HOOK_RUNNING_IN_BACKGROUD (3)
+
 /**
  * Delete job request
  * @brief
@@ -622,14 +624,21 @@ req_deletejob(struct batch_request *preq)
 	 */
 	pjob->ji_preq = preq;
 	hook_input = (mom_hook_input_t *) malloc (sizeof(mom_hook_input_t));
+	if (hook_input == NULL) {
+		log_err(errno, __func__, MALLOC_ERR_MSG);
+		return;
+	}
 	mom_hook_input_init(hook_input);
 	hook_input->pjob = pjob;
 
 	if (mom_process_hooks(HOOK_EVENT_EXECJOB_END,
 		PBS_MOM_SERVICE_NAME, mom_host, hook_input,
-		hook_output, hook_msg, sizeof(hook_msg), 1) == 3)
-			/* Hook is running background reply to batch
-			 * request will be taken care in run_execjob_end_hooks function */
+		hook_output, hook_msg, sizeof(hook_msg), 1) == HOOK_RUNNING_IN_BACKGROUD)
+			/* 
+			 * Hook is running in background reply to the batch
+			 * request will be taken care of in run_execjob_end_hooks
+			 * function 
+			 */
 			return;
 
 #if MOM_ALPS

@@ -3081,35 +3081,36 @@ record_job_last_hook_executed(unsigned int hook_event,
 
 /**
  * @brief
- * This function runs after execution of a single execjob_endhook and
+ * This function runs after execution of a single execjob_end hook and
  * process the results of hook, on successful hook execution new task
  * will be created to run the next hook script. If there was  an
  * error (the hook process returned a non-zero exit status) it does
  * not create the new task for the next hook script and sends replies
  * to the outstanding batch request.
  * 
- * @param[in] 	pwt - the work task.
+ * @param[in] 	ptask - the work task.
  *
  * @return none
  */
 static void
-post_execjob_end_hook(struct work_task *ptask) {
+post_execjob_end_hook(struct work_task *ptask)
+{
 
-	int		accept_flag = 1;
-	int 	reject_flag = 0;
-	int 	reject_rerunjob = 0;
-	int		reject_deletejob = 0;
-	int 	reboot_flag = 0;
-	int		log_type = 0;
-	int		log_class = 0;
-	int		hook_error_flag = 0;
-	int		wstat = ptask->wt_aux;
-	char	*log_id = NULL;
-	char	reject_msg[HOOK_MSG_SIZE+1] = {'\0',};
-	char	reboot_cmd[HOOK_BUF_SIZE]  = {'\0',};
-	char	hook_outfile[MAXPATHLEN+1] = {'\0',};
-	pid_t	 mypid = ptask->wt_event;
-	hook 	*phook	= (hook *)ptask->wt_parm1;
+	int    accept_flag = 1;
+	int    reject_flag = 0;
+	int    reject_rerunjob = 0;
+	int    reject_deletejob = 0;
+	int    reboot_flag = 0;
+	int    log_type = 0;
+	int    log_class = 0;
+	int    hook_error_flag = 0;
+	int    wstat = ptask->wt_aux;
+	char   *log_id = NULL;
+	char   reject_msg[HOOK_MSG_SIZE+1] = {'\0'};
+	char   reboot_cmd[HOOK_BUF_SIZE]  = {'\0'};
+	char   hook_outfile[MAXPATHLEN+1] = {'\0'};
+	pid_t  mypid = ptask->wt_event;
+	hook   *phook	= (hook *)ptask->wt_parm1;
 	mom_hook_input_t *hook_input 	= (mom_hook_input_t *) ptask->wt_parm2;
 	job *pjob	= (job *) hook_input->pjob;
 	struct work_task *new_task;
@@ -3130,16 +3131,6 @@ post_execjob_end_hook(struct work_task *ptask) {
 	log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_HOOK,
 		LOG_INFO, phook->hook_name, "finished");
 
-	/* Check hook exit status */
-	if (wstat != 0) {
-		snprintf(log_buffer, LOG_BUF_SIZE-1,
-			"Non-zero exit status %d encountered for execjob_end hook",
-			wstat);
-		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
-			LOG_ERR, phook->hook_name, log_buffer);
-		hook_error_flag = 1;	/* hook results are invalid */
-	}
-
 	switch (wstat) {
 		case 0:
 			break;
@@ -3150,22 +3141,28 @@ post_execjob_end_hook(struct work_task *ptask) {
 				hook_event_as_string(phook->event), phook->hook_name);
 			log_event(log_type, log_class,
 				LOG_ERR, log_id, log_buffer);
-			record_job_last_hook_executed(phook->event, phook->hook_name, pjob, hook_outfile);
+			record_job_last_hook_executed(phook->event,
+				phook->hook_name, pjob, hook_outfile);
+			hook_error_flag = 1;
 			break;
 		case 253:
 			snprintf(log_buffer, LOG_BUF_SIZE-1,
 				"alarm call while running %s hook '%s', "
 				"request rejected",
 				hook_event_as_string(phook->event), phook->hook_name);
-			log_event(log_type, log_class, LOG_ERR, log_id, log_buffer);
-			record_job_last_hook_executed(phook->event, phook->hook_name, pjob, hook_outfile);
+			log_event(log_type, log_class, LOG_ERR, log_id,
+				log_buffer);
+			record_job_last_hook_executed(phook->event,
+				phook->hook_name, pjob, hook_outfile);
+			hook_error_flag = 1;
 			break;
 		default:
 			snprintf(log_buffer, LOG_BUF_SIZE-1,
-				"Internal server error encountered. Skipping hook %s",
-				phook->hook_name);
-			log_event(log_type, log_class, LOG_ERR, log_id, log_buffer);
-
+				"Non-zero exit status %d encountered for "
+				"execjob_end hook", wstat);
+			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
+				LOG_ERR, phook->hook_name, log_buffer);
+			hook_error_flag = 1;	/* hook results are invalid */
 	}
 
 	if (hook_error_flag == 0) {
@@ -3191,34 +3188,21 @@ post_execjob_end_hook(struct work_task *ptask) {
 	if ((hook_error_flag == 1) || (accept_flag == 0)) {
 
 		snprintf(log_buffer, sizeof(log_buffer),
-			"%s request rejected by '%s'",
-			"execjob_end", phook->hook_name);
+					"%s request rejected by '%s'",
+					hook_event_as_string(phook->event),
+					phook->hook_name);
 		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
-			LOG_ERR, phook->hook_name, log_buffer);
+					LOG_ERR, phook->hook_name, log_buffer);
+
 		if ((reject_msg != NULL) && (reject_msg[0] != '\0')) {
 			snprintf(log_buffer, sizeof(log_buffer), "%s",
 				reject_msg);
 			/* log also the custom reject message */
-			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
-				LOG_ERR, phook->hook_name, log_buffer);
+			log_event(log_type, log_class, LOG_ERR,
+				log_id, log_buffer);
 		}
-		if (!accept_flag) {
-			snprintf(log_buffer, sizeof(log_buffer),
-						"%s request rejected by '%s'",
-						hook_event_as_string(phook->event),
-						phook->hook_name);
-					log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
-						LOG_ERR, phook->hook_name, log_buffer);
-			if ((reject_msg != NULL) && (reject_msg[0] != '\0')) {
-				snprintf(log_buffer, sizeof(log_buffer), "%s",
-					reject_msg);
-				/* log also the custom reject message */
-				log_event(log_type,
-					log_class, LOG_ERR,
-					log_id, log_buffer);
-			}
-		}
-	/* Don't process anymore hooks on reject */
+
+		/* Don't process anymore hooks on reject */
 		pjob = hook_input->pjob;
 
 #if MOM_ALPS
@@ -3284,16 +3268,17 @@ post_execjob_end_hook(struct work_task *ptask) {
  * This function loops through the execjob_end hook list,
  * and runs hook in the background.
  * 
- * @param[in] pwt - the work task. 
+ * @param[in] ptask - the work task. 
  * 
  * @retval 0 running a hook script.
  * @retval 1 no hook script to run.
  */
  static int
- run_execjob_end_hooks(struct work_task *ptask) {
-	char	hook_infile[MAXPATHLEN+1] = {'\0',};
-	char	hook_outfile[MAXPATHLEN+1] = {'\0',};
-	char	hook_datafile[MAXPATHLEN+1] = {'\0',};
+ run_execjob_end_hooks(struct work_task *ptask)
+ {
+	char	hook_infile[MAXPATHLEN+1] = {'\0'};
+	char	hook_outfile[MAXPATHLEN+1] = {'\0'};
+	char	hook_datafile[MAXPATHLEN+1] = {'\0'};
 #if !MOM_ALPS
 	int 	numnodes = 0;
 	struct 	batch_request *preq;
@@ -3304,10 +3289,10 @@ post_execjob_end_hook(struct work_task *ptask) {
 	hook			*phook = NULL;
 	mom_hook_input_t *hook_input = (mom_hook_input_t *) ptask->wt_parm1;
 
-	if (ptask->wt_parm2 == NULL){
+	if (ptask->wt_parm2 == NULL) {
 		head_ptr = &svr_execjob_end_hooks;
 		phook = (hook *)GET_NEXT(*head_ptr);
-	}else {
+	} else {
 		phook = (hook *)ptask->wt_parm2;
 		phook = (hook *)GET_NEXT(phook->hi_execjob_end_hooks);
 	}
@@ -3366,7 +3351,7 @@ post_execjob_end_hook(struct work_task *ptask) {
 
 	run_hook(phook, phook->event, hook_input,
 			PBS_MOM_SERVICE_NAME, mom_host, 0, post_execjob_end_hook,
-			hook_infile, hook_outfile, hook_datafile, MAXPATHLEN+1  );
+			hook_infile, hook_outfile, hook_datafile, MAXPATHLEN+1);
 
 	return 0;
  }
