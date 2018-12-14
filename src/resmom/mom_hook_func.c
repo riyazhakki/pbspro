@@ -3104,14 +3104,14 @@ post_execjob_end_hook(struct work_task *ptask)
 	int    log_type = 0;
 	int    log_class = 0;
 	int    hook_error_flag = 0;
-	int    wstat = ptask->wt_aux;
+	int    wstat = 0;
 	char   *log_id = NULL;
 	char   reject_msg[HOOK_MSG_SIZE+1] = {'\0'};
 	char   reboot_cmd[HOOK_BUF_SIZE]  = {'\0'};
 	char   hook_outfile[MAXPATHLEN+1] = {'\0'};
-	pid_t  mypid = ptask->wt_event;
-	hook   *phook	= (hook *)ptask->wt_parm1;
-	mom_hook_input_t *hook_input 	= (mom_hook_input_t *) ptask->wt_parm2;
+	pid_t  mypid = 0;
+	hook   *phook	= NULL;
+	mom_hook_input_t *hook_input 	= NULL;
 	job *pjob	= NULL;
 	struct work_task *new_task;
 	pbs_list_head	vnl_changes;
@@ -3120,16 +3120,26 @@ post_execjob_end_hook(struct work_task *ptask)
 	int 	numnodes = 0;
 #endif
 
+	if (ptask == NULL) {
+		log_err(-1, __func__, "missing ptask argument to event");
+		return;
+	}
+
+	hook_input = (mom_hook_input_t *) ptask->wt_parm2;
 	if (hook_input == NULL) {
 		log_err(-1, __func__, "missing input argument to event");
 		return;
 	}
 
+	assert(ptask->wt_parm1 != NULL);
+
+	mypid = ptask->wt_event;
+	wstat = ptask->wt_aux;
+	phook = (hook *)ptask->wt_parm1;
 	pjob = (job *)hook_input->pjob;
 
 	CLEAR_HEAD(vnl_changes);
 
-	assert(ptask->wt_parm1 != NULL);
 
 	log_id = pjob->ji_qs.ji_jobid;
 	log_type = PBSEVENT_JOB;
