@@ -35,7 +35,6 @@
 # "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
 # trademark licensing policies.
 from tests.functional import *
-import time
 
 
 class TestPbsExecjobEnd(TestFunctional):
