@@ -3112,13 +3112,20 @@ post_execjob_end_hook(struct work_task *ptask)
 	pid_t  mypid = ptask->wt_event;
 	hook   *phook	= (hook *)ptask->wt_parm1;
 	mom_hook_input_t *hook_input 	= (mom_hook_input_t *) ptask->wt_parm2;
-	job *pjob	= (job *) hook_input->pjob;
+	job *pjob	= NULL;
 	struct work_task *new_task;
 	pbs_list_head	vnl_changes;
 #if !MOM_ALPS
 	struct batch_request *preq;
 	int 	numnodes = 0;
 #endif
+
+	if (hook_input == NULL) {
+		log_err(-1, __func__, "missing input argument to event");
+		return;
+	}
+
+	pjob = (job *)hook_input->pjob;
 
 	CLEAR_HEAD(vnl_changes);
 
@@ -3382,8 +3389,9 @@ post_execjob_end_hook(struct work_task *ptask)
  *		request.
  * @retval 	1 means all the executed hooks have agreed to accept the request
  * @retval	2 means no hook script executed (special case).
- * @retval	3 background process started for the hook script.
  * @retval	-1 an internal error occurred
+ * @retval	HOOK_RUNNING_IN_BACKGROUND 
+ * 				background process started for the hook script.
  *
  */
 int
@@ -3491,7 +3499,7 @@ mom_process_hooks(unsigned int hook_event, char *req_user, char *req_host,
 			pjob->ji_wattr[(int)JOB_ATR_exit_status].at_flags |= (ATR_VFLAG_SET | ATR_VFLAG_MODCACHE);
 
 			pjob->ji_execjob_end_hook_event_started = 1;
-			return (3); /* hook script started in child process*/
+			return (HOOK_RUNNING_IN_BACKGROUND); /* hook script started in child process*/
 		}
 		return (2);
 	}

@@ -55,6 +55,8 @@ extern "C" {
 /* receiving IS_HELLO sequeunce.  */
 #define HOOK_VNL_PERSISTENT_ATTRIBS  "resources_available sharing pcpus resources_assigned"
 
+#define HOOK_RUNNING_IN_BACKGROUND (3)
+
 /* used to send hook's job delete/requeue request to server */
 struct hook_job_action {
 	pbs_list_link  hja_link;

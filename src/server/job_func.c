@@ -362,6 +362,7 @@ job_alloc(void)
 	pj->ji_parent2child_job_update_status_pipe = -1;
 	pj->ji_parent2child_moms_status_pipe = -1;
 	pj->ji_updated = 0;
+	pj->ji_execjob_end_hook_event_started = 0;
 #ifdef WIN32
 	pj->ji_hJob = NULL;
 	pj->ji_user = NULL;
