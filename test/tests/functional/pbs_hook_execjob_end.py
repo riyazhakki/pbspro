@@ -76,14 +76,12 @@ class TestPbsExecjobEnd(TestFunctional):
         j.set_sleep_time(1)
         self.server.create_import_hook(hook_name, attr, hook_body)
         jid = self.server.submit(j)
-        (_, str1) = self.mom.log_match(
-                                       "Job;%s;executed execjob_end hook" %
+        (_, str1) = self.mom.log_match("Job;%s;executed execjob_end hook" %
                                        jid, n=100, max_attempts=10, interval=2)
         date_time = str1.split(";")[0]
         epoch = int(time.mktime(time.strptime(
             date_time1, '%m/%d/%Y %H:%M:%S')))
-        (_, str1) = self.mom.log_match(
-                                       "executed exechost_periodic hook",
+        (_, str1) = self.mom.log_match("executed exechost_periodic hook",
                                        starttime=epoch, n=100,
                                        max_attempts=10, interval=2)
         date_time = str1.split(";")[0]
