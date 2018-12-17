@@ -71,24 +71,30 @@ class TestPbsExecjobEnd(TestFunctional):
                                  'executed exechost_periodic hook')\n"
                      "e.accept()\n")
         attr = {'event': 'exechost_periodic', 'freq': '3', 'enabled': 'True'}
-        attrj = {'Resource_List.select': 'ncpus=1'}
-        j = Job(TEST_USER, attrs=attrj)
+        j = Job(TEST_USER)
         j.set_sleep_time(1)
         self.server.create_import_hook(hook_name, attr, hook_body)
         jid = self.server.submit(j)
         (_, str1) = self.mom.log_match("Job;%s;executed execjob_end hook" %
                                        jid, n=100, max_attempts=10, interval=2)
-        date_time = str1.split(";")[0]
-        epoch = int(time.mktime(time.strptime(
+        date_time1 = str1.split(";")[0]
+        epoch1 = int(time.mktime(time.strptime(
             date_time1, '%m/%d/%Y %H:%M:%S')))
         (_, str1) = self.mom.log_match("executed exechost_periodic hook",
-                                       starttime=epoch, n=100,
+                                       starttime=epoch1, n=100,
                                        max_attempts=10, interval=2)
-        date_time = str1.split(";")[0]
-        epoch = int(time.mktime(time.strptime(
-            date_time1, '%m/%d/%Y %H:%M:%S')))
-        self.mom.log_match("Job;%s;execjob_end hook ended" % jid,
-                           starttime=epoch, n=100, max_attempts=10, interval=2)
+        date_time2 = str1.split(";")[0]
+        epoch2 = int(time.mktime(time.strptime(
+            date_time2, '%m/%d/%Y %H:%M:%S')))
+        (_, str1) = self.mom.log_match(
+            "Job;%s;execjob_end hook ended" %
+            jid, starttime=epoch2, n=100,
+            max_attempts=10, interval=2)
+        date_time3 = str1.split(";")[0]
+        self.logger.info(
+            "execjob_end hook executed at: %s,"
+            "exechost_periodic at: %s and execjob_end hook ended at: %s" %
+            (date_time1, date_time2, date_time3))
 
     def test_execjob_end_hook_order_and_reject(self):
         """
@@ -113,8 +119,7 @@ class TestPbsExecjobEnd(TestFunctional):
         hook_name2 = "execjob_end_logmsg3"
         attr = {'event': 'execjob_end', 'order': '170', 'enabled': 'True'}
         self.server.create_import_hook(hook_name2, attr, hook_body)
-        attrj = {'Resource_List.select': 'ncpus=1'}
-        j = Job(TEST_USER, attrs=attrj)
+        j = Job(TEST_USER)
         j.set_sleep_time(1)
         jid = self.server.submit(j)
         self.mom.log_match("Job;%s;executed %s hook" % (jid, hook_name1),
@@ -130,8 +135,7 @@ class TestPbsExecjobEnd(TestFunctional):
         """
         hook_name = "execjob_end_logmsg4"
         self.server.create_import_hook(hook_name, self.attr, self.hook_body)
-        attrj = {'Resource_List.select': 'ncpus=1'}
-        j = Job(TEST_USER, attrs=attrj)
+        j = Job(TEST_USER)
         j.set_sleep_time(1)
         jid1 = self.server.submit(j)
         j.set_sleep_time(1)
