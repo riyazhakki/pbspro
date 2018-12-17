@@ -3082,11 +3082,11 @@ record_job_last_hook_executed(unsigned int hook_event,
 /**
  * @brief
  * This function runs after execution of a single execjob_end hook and
- * process the results of hook, on successful hook execution new task
- * will be created to run the next hook script. If there was  an
- * error (the hook process returned a non-zero exit status) it does
- * not create the new task for the next hook script and sends replies
- * to the outstanding batch request.
+ * processes the results from hook execution. On successful hook
+ * execution, a new task will be created to run the next hook script.
+ * If there was an error (the hook process returned a non-zero exit
+ * status) it does not create the new task for the next hook script
+ * and replies to the outstanding batch request.
  * 
  * @param[in] 	ptask - the work task.
  *
@@ -3301,9 +3301,9 @@ post_execjob_end_hook(struct work_task *ptask)
 	struct 	batch_request *preq;
 #endif
 
-	job				*pjob = NULL;
-	pbs_list_head	*head_ptr = NULL;
-	hook			*phook = NULL;
+	job              *pjob = NULL;
+	pbs_list_head    *head_ptr = NULL;
+	hook             *phook = NULL;
 	mom_hook_input_t *hook_input = (mom_hook_input_t *) ptask->wt_parm1;
 
 	if (ptask->wt_parm2 == NULL) {
@@ -3496,7 +3496,7 @@ mom_process_hooks(unsigned int hook_event, char *req_user, char *req_host,
 	if (hook_event == HOOK_EVENT_EXECJOB_END) {
 		/* Unblock MOM on execjob_end event */
 
-		struct 			work_task task;
+		struct work_task task;
 		task.wt_parm1 = (void *)hook_input;
 		task.wt_parm2 = NULL;
 		if (!run_execjob_end_hooks(&task)) {

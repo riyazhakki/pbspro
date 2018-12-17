@@ -548,8 +548,6 @@ return_file(job *pjob, enum job_file which, int sock)
 		return (-1);
 }
 
-#define HOOK_RUNNING_IN_BACKGROUD (3)
-
 /**
  * Delete job request
  * @brief
@@ -633,7 +631,7 @@ req_deletejob(struct batch_request *preq)
 
 	if (mom_process_hooks(HOOK_EVENT_EXECJOB_END,
 		PBS_MOM_SERVICE_NAME, mom_host, hook_input,
-		hook_output, hook_msg, sizeof(hook_msg), 1) == HOOK_RUNNING_IN_BACKGROUD)
+		hook_output, hook_msg, sizeof(hook_msg), 1) == HOOK_RUNNING_IN_BACKGROUND)
 			/* 
 			 * Hook is running in background reply to the batch
 			 * request will be taken care of in run_execjob_end_hooks

@@ -59,8 +59,9 @@ class TestPbsExecjobEnd(TestFunctional):
 
     def test_execjob_end_non_blocking(self):
         """
-        Test to make sure pbs_mom is not blocked upon
-        execution of an execjob_end hook.
+        Test to make sure that mom is unblocked and running
+        exechost_periodic hook while it's child process is executing
+        execjob_end hook.
         """
         hook_name = "execjob_end_logmsg"
         self.server.create_import_hook(hook_name, self.attr, self.hook_body)
@@ -98,8 +99,8 @@ class TestPbsExecjobEnd(TestFunctional):
 
     def test_execjob_end_hook_order_and_reject(self):
         """
-        Test with mutiple execjob_end hooks with with
-        different order for a job with one of the hooks rejecting the job.
+        Test with multiple execjob_end hooks having different order
+        with one of the hooks rejecting the job.
         """
         hook_name1 = "execjob_end_logmsg1"
         hook_body = ("import pbs\n"
@@ -138,13 +139,24 @@ class TestPbsExecjobEnd(TestFunctional):
         j = Job(TEST_USER)
         j.set_sleep_time(1)
         jid1 = self.server.submit(j)
+        self.server.expect(JOB, {'job_state': 'R'}, id=jid1)
+        j = Job(TEST_USER)
         j.set_sleep_time(1)
         jid2 = self.server.submit(j)
-        self.mom.log_match("Job;%s;executed execjob_end hook" % jid1,
-                           n=100, max_attempts=10, interval=2)
-        self.mom.log_match("Job;%s;executed execjob_end hook" % jid2,
-                           n=100, max_attempts=10, interval=2)
-        self.mom.log_match("Job;%s;execjob_end hook ended" % jid1,
-                           n=100, max_attempts=10, interval=2)
+        (_, str1) = self.mom.log_match("Job;%s;executed execjob_end hook" %
+                                       jid1, n=100, max_attempts=10,
+                                       interval=2)
+        date_time1 = str1.split(";")[0]
+        epoch1 = int(time.mktime(time.strptime(
+            date_time1, '%m/%d/%Y %H:%M:%S')))
+        (_, str1) = self.mom.log_match("Job;%s;executed execjob_end hook" %
+                                       jid2, starttime=epoch1, n=100,
+                                       max_attempts=10, interval=2)
+        date_time1 = str1.split(";")[0]
+        epoch1 = int(time.mktime(time.strptime(
+            date_time1, '%m/%d/%Y %H:%M:%S')))
+        (_, str1) = self.mom.log_match("Job;%s;execjob_end hook ended" % jid1,
+                                       starttime=epoch1, n=100,
+                                       max_attempts=10, interval=2)
         self.mom.log_match("Job;%s;execjob_end hook ended" % jid2,
                            n=100, max_attempts=10, interval=2)
