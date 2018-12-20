@@ -631,13 +631,15 @@ req_deletejob(struct batch_request *preq)
 
 	if (mom_process_hooks(HOOK_EVENT_EXECJOB_END,
 		PBS_MOM_SERVICE_NAME, mom_host, hook_input,
-		hook_output, hook_msg, sizeof(hook_msg), 1) == HOOK_RUNNING_IN_BACKGROUND)
+		hook_output, hook_msg, sizeof(hook_msg), 1) == HOOK_RUNNING_IN_BACKGROUND) {
 			/* 
 			 * Hook is running in background reply to the batch
 			 * request will be taken care of in run_execjob_end_hooks
 			 * function 
 			 */
+			pjob->ji_execjob_end_hook_event_started = 1;
 			return;
+		}
 
 #if MOM_ALPS
 	(void)mom_deljob_wait(pjob);
