@@ -3334,44 +3334,46 @@ post_execjob_end_hook(struct work_task *ptask)
 		}
 		break;
 	}
-	if ((!phook) && (ptask->wt_parm2 != NULL)) {
-		pjob = hook_input->pjob;
-		if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_HERE) {
+	if (!phook) {
+		if (ptask->wt_parm2 != NULL) {
+			pjob = hook_input->pjob;
+			if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_HERE) {
 #if MOM_ALPS
-			(void)mom_deljob_wait(pjob);
+				(void)mom_deljob_wait(pjob);
 
-			/*
-			* The delete job request from Server will have been
-			* or will be replied to and freed by the
-			* alps_cancel_reservation code in the sequence of
-			* functions started with the above call to
-			* mom_deljob_wait().  Set preq to NULL here so we
-			* don't try, mistakenly, to use it again.
-			*/
-			pjob->ji_preq = NULL;
-#else
-			numnodes = pjob->ji_numnodes;
-			preq = pjob->ji_preq;
-			pjob->ji_preq = NULL;
-			if (mom_deljob_wait(pjob) > 0) {
-				/* wait till sisters respond */
-				pjob->ji_preq = preq;
-			} else if (numnodes > 1) {
 				/*
-				* no messages sent, but there are sisters
-				* must be all down
+				* The delete job request from Server will have been
+				* or will be replied to and freed by the
+				* alps_cancel_reservation code in the sequence of
+				* functions started with the above call to
+				* mom_deljob_wait().  Set preq to NULL here so we
+				* don't try, mistakenly, to use it again.
 				*/
-				req_reject(PBSE_SISCOMM, 0, preq); /* all sis down */
-			} else {
-				reply_ack(preq);	/* no sisters, reply now  */
-			}
+				pjob->ji_preq = NULL;
+#else
+				numnodes = pjob->ji_numnodes;
+				preq = pjob->ji_preq;
+				pjob->ji_preq = NULL;
+				if (mom_deljob_wait(pjob) > 0) {
+					/* wait till sisters respond */
+					pjob->ji_preq = preq;
+				} else if (numnodes > 1) {
+					/*
+					* no messages sent, but there are sisters
+					* must be all down
+					*/
+					req_reject(PBSE_SISCOMM, 0, preq); /* all sis down */
+				} else {
+					reply_ack(preq);	/* no sisters, reply now  */
+				}
 #endif
-		} else {
-			void post_reply(job *, int);
-			post_reply(pjob, 0);
-			mom_deljob(pjob);
+			} else {
+				void post_reply(job *, int);
+				post_reply(pjob, 0);
+				mom_deljob(pjob);
+			}
+			free(hook_input);
 		}
-		free(hook_input);
 		return 1;
  	}
 
