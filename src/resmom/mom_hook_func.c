@@ -80,6 +80,8 @@
 #include "mom_hook_func.h"
 #include "hook.h"
 #include "pbs_reliable.h"
+#include "rpp.h"
+#include "dis.h"
 
 
 #define	RESCASSN_NCPUS	"resources_assigned.ncpus"
@@ -138,6 +140,7 @@ extern vnl_t		*vnlp;
 extern unsigned long	 hook_action_id;
 extern	int		internal_state_update; /* flag for sending mom information update to the server */
 
+extern int		server_stream;
 /**
  * @brief
  * 	Print job data into stream pointed by 'fp'.
@@ -3302,6 +3305,9 @@ post_execjob_end_hook(struct work_task *ptask)
 	char	hook_infile[MAXPATHLEN+1] = {'\0'};
 	char	hook_outfile[MAXPATHLEN+1] = {'\0'};
 	char	hook_datafile[MAXPATHLEN+1] = {'\0'};
+	char	jobid[PBS_MAXSVRJOBID+1];
+	int		n;
+	int		ret;
 #if !MOM_ALPS
 	int 	numnodes = 0;
 	struct 	batch_request *preq;
@@ -3337,7 +3343,26 @@ post_execjob_end_hook(struct work_task *ptask)
 	if (!phook) {
 		if (ptask->wt_parm2 != NULL) {
 			pjob = hook_input->pjob;
-			if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_HERE) {
+
+			if (pjob->ji_execjob_end_hook_event_started == IS_DISCARD_JOB) {
+
+				n = pjob->ji_wattr[(int)JOB_ATR_run_version].at_val.at_long;
+				strcpy(jobid, pjob->ji_qs.ji_jobid);
+				mom_deljob(pjob);
+
+				if ((ret=is_compose(server_stream, IS_DISCARD_DONE)) != DIS_SUCCESS)
+					goto err;
+
+				if ((ret=diswst(server_stream, jobid)) != DIS_SUCCESS)
+					goto err;
+
+				if ((ret=diswsi(server_stream, n)) != DIS_SUCCESS)
+					goto err;
+
+				rpp_flush(server_stream);
+				rpp_eom(server_stream); 
+
+			} else if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_HERE) {
 #if MOM_ALPS
 				(void)mom_deljob_wait(pjob);
 
@@ -3382,6 +3407,14 @@ post_execjob_end_hook(struct work_task *ptask)
 			hook_infile, hook_outfile, hook_datafile, MAXPATHLEN+1);
 
 	return 0;
+
+	err:
+		free(hook_input);
+		sprintf(log_buffer, "%s", dis_emsg[ret]);
+		log_err(-1, __func__, log_buffer);
+		rpp_close(server_stream);
+
+		return 1;
  }
 
 /**

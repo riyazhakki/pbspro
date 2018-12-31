@@ -725,7 +725,7 @@ is_request(int stream, int version)
 	unsigned long		hkseq;
 	struct hook_job_action *phjba;
 	struct hook_vnl_action *phvna;
-	mom_hook_input_t	hook_input;
+	mom_hook_input_t	*phook_input = NULL;
 
 	DBPRT(("%s: stream %d version %d\n", __func__, stream, version))
 	if (version != IS_PROTOCOL_VER) {
@@ -1076,13 +1076,26 @@ is_request(int stream, int version)
 						LOG_NOTICE,
 						pjob->ji_qs.ji_jobid,
 						"Job discarded at request of Server");
+						if (pjob->ji_execjob_end_hook_event_started)
+							return;
 					(void)kill_job(pjob, SIGKILL);
+					phook_input = (mom_hook_input_t *) malloc (sizeof(mom_hook_input_t));
+					if (phook_input == NULL) {
+						log_err(errno, __func__, MALLOC_ERR_MSG);
+						goto err;
+					}
+					mom_hook_input_init(phook_input);
+					phook_input->pjob = pjob;
 
-					mom_hook_input_init(&hook_input);
-					hook_input.pjob = pjob;
-					(void)mom_process_hooks(HOOK_EVENT_EXECJOB_END,
+					if (mom_process_hooks(HOOK_EVENT_EXECJOB_END,
 						PBS_MOM_SERVICE_NAME, mom_host,
-						&hook_input, NULL, NULL, 0, 1);
+						phook_input, NULL, NULL, 0, 1) == HOOK_RUNNING_IN_BACKGROUND) {
+							pjob->ji_execjob_end_hook_event_started = IS_DISCARD_JOB;
+							free(jobid);
+							jobid = NULL;
+							rpp_eom(stream);
+							return;
+						}
 					mom_deljob(pjob);
 				}
 			}

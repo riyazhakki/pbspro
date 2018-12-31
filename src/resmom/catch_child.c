@@ -1253,6 +1253,15 @@ send_obit(job *pjob, int exval)
 	struct resc_used_update rud;
 	pbs_list_head vnl_changes;
 
+	if (pjob->ji_execjob_end_hook_event_started)
+		/**
+		 * Now MOM is unblocked while running execjob_end hook
+		 * it is possible control may come here from finish_loop
+		 * (while processing IS_DISCARD_JOB), and may lead to
+		 * receiving IS_BADOBIT response from server.
+		 */
+		return;
+
 #ifndef WIN32
 	/* update pjob with values set from an epilogue hook */
 	/* since these are hooks that are executing in a child process */
