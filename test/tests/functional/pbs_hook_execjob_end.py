@@ -76,6 +76,10 @@ class TestPbsExecjobEnd(TestFunctional):
         j.set_sleep_time(1)
         self.server.create_import_hook(hook_name, attr, hook_body)
         jid = self.server.submit(j)
+        # need to verify hook messages in the below mentioned order to
+        # confirm mom is not blocked on execjob_end hook execution.
+        # The order is verified with the use of starttime and endtime
+        # parameters.
         (_, str1) = self.mom.log_match("Job;%s;executed execjob_end hook" %
                                        jid, n=100, max_attempts=10, interval=2)
         date_time1 = str1.split(";")[0]
@@ -141,10 +145,15 @@ class TestPbsExecjobEnd(TestFunctional):
         j = Job(TEST_USER)
         j.set_sleep_time(1)
         jid1 = self.server.submit(j)
+        # jid1 should be in E state, in sleep of execjob_end hook for
+        # jid2 submmision.
         self.server.expect(JOB, {'job_state': 'E'}, id=jid1)
         j = Job(TEST_USER)
         j.set_sleep_time(1)
         jid2 = self.server.submit(j)
+        # hook message of jid2 should be logged after the message of jid1 and
+        # before completion of sleep in hook for jid1 inorder to prove mom
+        # is not in blocked state.
         (_, str1) = self.mom.log_match("Job;%s;executed execjob_end hook" %
                                        jid1, n=100, max_attempts=10,
                                        interval=2)
@@ -181,8 +190,6 @@ class TestPbsExecjobEnd(TestFunctional):
                                  'executed exechost_periodic hook')\n"
                      "e.accept()\n")
         attr = {'event': 'exechost_periodic', 'freq': '3', 'enabled': 'True'}
-        self.momA = self.moms.values()[0]
-        self.momB = self.moms.values()[1]
         a = {'Resource_List.select': '2:ncpus=1',
              'Resource_List.place': "scatter"}
         j = Job(TEST_USER, attrs=a)
@@ -213,3 +220,39 @@ class TestPbsExecjobEnd(TestFunctional):
                 "execjob_end hook executed at: %s,"
                 "exechost_periodic at: %s and execjob_end hook ended at: %s" %
                 (date_time1, date_time2, date_time3))
+
+    def test_execjob_end_delete_request(self):
+        """
+        Test to make sure execjob_end hook is running
+        after job force deletion request(IS_DISCARD_JOB) when
+        mom is unblocked.
+        """
+        hook_name = "execjob_end_logmsg6"
+        self.server.create_import_hook(hook_name, self.attr, self.hook_body)
+        if len(self.moms) > 1:
+            a = {'Resource_List.select': '2:ncpus=1',
+                 'Resource_List.place': "scatter"}
+            j = Job(TEST_USER, attrs=a)
+            j.set_sleep_time(10)
+            jid = self.server.submit(j)
+            self.server.expect(JOB, {'job_state': 'R'}, id=jid)
+            self.server.deljob(id=jid, wait=True, attr_W="force")
+            for host, mom in self.moms.iteritems():
+                mom.log_match("Job;%s;executed execjob_end hook" %
+                              jid, n=100, max_attempts=10,
+                              interval=2)
+                mom.log_match("Job;%s;execjob_end hook ended" %
+                              jid, n=100, max_attempts=10,
+                              interval=2)
+                msg = "Got expected log_msg on host:%s" % host
+                self.logger.info(msg)
+        else:
+            j = Job(TEST_USER)
+            j.set_sleep_time(10)
+            jid = self.server.submit(j)
+            self.server.expect(JOB, {'job_state': 'R'}, id=jid)
+            self.server.deljob(id=jid, wait=True, attr_W="force")
+            self.mom.log_match("Job;%s;executed execjob_end hook" %
+                               jid, n=100, max_attempts=10, interval=2)
+            self.mom.log_match("Job;%s;execjob_end hook ended" %
+                               jid, n=100, max_attempts=10, interval=2)
