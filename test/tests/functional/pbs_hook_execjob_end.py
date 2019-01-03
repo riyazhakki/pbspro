@@ -179,7 +179,7 @@ class TestPbsExecjobEnd(TestFunctional):
         Test to make sure sister mom is unblocked
         when execjob_end hook is running on sister mom
         """
-        if len(self.moms) < 2:
+        if len(self.moms) != 2:
             self.skip_test(reason="need 2 mom hosts: -p moms=<m1>:<m2>")
         hook_name = "execjob_end_logmsg5"
         self.server.create_import_hook(hook_name, self.attr, self.hook_body)
@@ -229,30 +229,22 @@ class TestPbsExecjobEnd(TestFunctional):
         """
         hook_name = "execjob_end_logmsg6"
         self.server.create_import_hook(hook_name, self.attr, self.hook_body)
-        if len(self.moms) > 1:
+        if len(self.moms) == 2:
             a = {'Resource_List.select': '2:ncpus=1',
                  'Resource_List.place': "scatter"}
             j = Job(TEST_USER, attrs=a)
-            j.set_sleep_time(10)
-            jid = self.server.submit(j)
-            self.server.expect(JOB, {'job_state': 'R'}, id=jid)
-            self.server.deljob(id=jid, wait=True, attr_W="force")
-            for host, mom in self.moms.iteritems():
-                mom.log_match("Job;%s;executed execjob_end hook" %
-                              jid, n=100, max_attempts=10,
-                              interval=2)
-                mom.log_match("Job;%s;execjob_end hook ended" %
-                              jid, n=100, max_attempts=10,
-                              interval=2)
-                msg = "Got expected log_msg on host:%s" % host
-                self.logger.info(msg)
-        else:
+        elif len(self.moms) == 1:
             j = Job(TEST_USER)
-            j.set_sleep_time(10)
-            jid = self.server.submit(j)
-            self.server.expect(JOB, {'job_state': 'R'}, id=jid)
-            self.server.deljob(id=jid, wait=True, attr_W="force")
-            self.mom.log_match("Job;%s;executed execjob_end hook" %
-                               jid, n=100, max_attempts=10, interval=2)
-            self.mom.log_match("Job;%s;execjob_end hook ended" %
-                               jid, n=100, max_attempts=10, interval=2)
+        j.set_sleep_time(10)
+        jid = self.server.submit(j)
+        self.server.expect(JOB, {'job_state': 'R'}, id=jid)
+        self.server.deljob(id=jid, wait=True, attr_W="force")
+        for host, mom in self.moms.iteritems():
+            mom.log_match("Job;%s;executed execjob_end hook" %
+                          jid, n=100, max_attempts=10,
+                          interval=2)
+            mom.log_match("Job;%s;execjob_end hook ended" %
+                          jid, n=100, max_attempts=10,
+                          interval=2)
+            msg = "Got expected log_msg on host:%s" % host
+            self.logger.info(msg)
