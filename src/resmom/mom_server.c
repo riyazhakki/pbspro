@@ -1076,10 +1076,14 @@ is_request(int stream, int version)
 						LOG_NOTICE,
 						pjob->ji_qs.ji_jobid,
 						"Job discarded at request of Server");
-						if (pjob->ji_execjob_end_hook_event_started)
+						if (pjob->ji_execjob_end_hook_event_started) {
+							free(jobid);
+							jobid = NULL;
+							rpp_eom(stream);
 							return;
+						}
 					(void)kill_job(pjob, SIGKILL);
-					phook_input = (mom_hook_input_t *) malloc (sizeof(mom_hook_input_t));
+					phook_input = (mom_hook_input_t *)malloc(sizeof(mom_hook_input_t));
 					if (phook_input == NULL) {
 						log_err(errno, __func__, MALLOC_ERR_MSG);
 						goto err;

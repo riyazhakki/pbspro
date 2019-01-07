@@ -2647,6 +2647,59 @@ mom_deljob_wait(job *pjob)
 }
 
 /**
+ *
+ * @brief
+ *  The wrapper to "mom_deljob_wait()".
+ * @par
+ *  This will call mom_deljob_wait based on MOM_ALPS macro and
+ *  reply to the batch request.
+ *
+ * @param[in] pjob - pointer to job structure
+ *
+ * @return void
+ */
+void
+mom_deljob_wait2(job *pjob)
+{
+#if MOM_ALPS
+	(void)mom_deljob_wait(pjob);
+
+	/*
+	* The delete job request from Server will have been
+	* or will be replied to and freed by the
+	* alps_cancel_reservation code in the sequence of
+	* functions started with the above call to
+	* mom_deljob_wait().  Set preq to NULL here so we
+	* don't try, mistakenly, to use it again.
+	*/
+	pjob->ji_preq = NULL;
+#else
+	int  		numnodes;
+	struct 	batch_request *preq;
+	/*
+	 * save number of nodes in sisterhood in case
+	 * job is deleted in mom_deljob_wait()
+	 */
+	numnodes = pjob->ji_numnodes;
+
+	preq = pjob->ji_preq;
+	pjob->ji_preq = NULL;
+	if (mom_deljob_wait(pjob) > 0) {
+		/* wait till sisters respond */
+		pjob->ji_preq = preq;
+	} else if (numnodes > 1) {
+		/*
+		* no messages sent, but there are sisters
+		* must be all down
+		*/
+		req_reject(PBSE_SISCOMM, 0, preq); /* all sis down */
+	} else {
+		reply_ack(preq);	/* no sisters, reply now  */
+	}
+#endif
+}
+
+/**
  * @brief
  * 	rid_job - rid mom of a job that the server says no longer exists
  *

@@ -136,6 +136,7 @@ extern int  send_sched_recycle(char *user);
 
 static void post_periodic_hook(struct work_task *pwt);
 
+
 extern vnl_t		*vnlp;
 extern unsigned long	 hook_action_id;
 extern	int		internal_state_update; /* flag for sending mom information update to the server */
@@ -3119,8 +3120,9 @@ post_execjob_end_hook(struct work_task *ptask)
 	struct work_task *new_task;
 	pbs_list_head	vnl_changes;
 #if !MOM_ALPS
+/*
 	struct batch_request *preq;
-	int 	numnodes = 0;
+	int 	numnodes = 0; */
 #endif
 
 	if (ptask == NULL) {
@@ -3226,35 +3228,7 @@ post_execjob_end_hook(struct work_task *ptask)
 		pjob = hook_input->pjob;
 
 		if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_HERE) {
-#if MOM_ALPS
-			(void)mom_deljob_wait(pjob);
-
-			/*
-			* The delete job request from Server will have been
-			* or will be replied to and freed by the
-			* alps_cancel_reservation code in the sequence of
-			* functions started with the above call to
-			* mom_deljob_wait().  Set preq to NULL here so we
-			* don't try, mistakenly, to use it again.
-			*/
-			pjob->ji_preq = NULL;
-#else
-			numnodes = pjob->ji_numnodes;
-			preq = pjob->ji_preq;
-			pjob->ji_preq = NULL;
-			if (mom_deljob_wait(pjob) > 0) {
-				/* wait till sisters respond */
-				pjob->ji_preq = preq;
-			} else if (numnodes > 1) {
-				/*
-				* no messages sent, but there are sisters
-				* must be all down
-				*/
-				req_reject(PBSE_SISCOMM, 0, preq); /* all sis down */
-			} else {
-				reply_ack(preq);	/* no sisters, reply now  */
-			}
-#endif
+			mom_deljob_wait2(pjob);
 		} else {
 			void post_reply(job *, int);
 			post_reply(pjob, 0);
@@ -3308,11 +3282,6 @@ post_execjob_end_hook(struct work_task *ptask)
 	char	jobid[PBS_MAXSVRJOBID+1];
 	int		n;
 	int		ret;
-#if !MOM_ALPS
-	int 	numnodes = 0;
-	struct 	batch_request *preq;
-#endif
-
 	job              *pjob = NULL;
 	pbs_list_head    *head_ptr = NULL;
 	hook             *phook = NULL;
@@ -3363,35 +3332,7 @@ post_execjob_end_hook(struct work_task *ptask)
 				rpp_eom(server_stream); 
 
 			} else if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_HERE) {
-#if MOM_ALPS
-				(void)mom_deljob_wait(pjob);
-
-				/*
-				* The delete job request from Server will have been
-				* or will be replied to and freed by the
-				* alps_cancel_reservation code in the sequence of
-				* functions started with the above call to
-				* mom_deljob_wait().  Set preq to NULL here so we
-				* don't try, mistakenly, to use it again.
-				*/
-				pjob->ji_preq = NULL;
-#else
-				numnodes = pjob->ji_numnodes;
-				preq = pjob->ji_preq;
-				pjob->ji_preq = NULL;
-				if (mom_deljob_wait(pjob) > 0) {
-					/* wait till sisters respond */
-					pjob->ji_preq = preq;
-				} else if (numnodes > 1) {
-					/*
-					* no messages sent, but there are sisters
-					* must be all down
-					*/
-					req_reject(PBSE_SISCOMM, 0, preq); /* all sis down */
-				} else {
-					reply_ack(preq);	/* no sisters, reply now  */
-				}
-#endif
+				mom_deljob_wait2(pjob);
 			} else {
 				void post_reply(job *, int);
 				post_reply(pjob, 0);

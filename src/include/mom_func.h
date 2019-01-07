@@ -192,6 +192,7 @@ extern int   kill_job(job *, int sig);
 extern int   kill_task(pbs_task *, int sig, int dir);
 extern void  del_job_hw(job *);
 extern void  mom_deljob(job *);
+extern void  mom_deljob_wait2(job *);
 extern int   do_mom_action_script(int, job *, pbs_task *, char *,
 	void(*)(job *, int));
 extern enum  Action_Verb chk_mom_action(enum Action_Event);

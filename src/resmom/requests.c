@@ -567,9 +567,6 @@ return_file(job *pjob, enum job_file which, int sock)
 void
 req_deletejob(struct batch_request *preq)
 {
-#if !MOM_ALPS
-	int  		numnodes;
-#endif
 	job 		*pjob;
 	char 		hook_msg[HOOK_MSG_SIZE+1];
 	mom_hook_input_t	*hook_input = NULL; 
@@ -607,21 +604,12 @@ req_deletejob(struct batch_request *preq)
 		req_reject(PBSE_TRYAGAIN, 0, preq);
 		return;
 	}
-
-#if !MOM_ALPS
-	/*
-	 * save number of nodes in sisterhood in case
-	 * job is deleted in mom_deljob_wait()
-	 */
-	numnodes = pjob->ji_numnodes;
-#endif
-
 	/*
 	 * mom_deljob_wait() sets substate to
 	 * prevent sending more OBIT messages
 	 */
 	pjob->ji_preq = preq;
-	hook_input = (mom_hook_input_t *) malloc (sizeof(mom_hook_input_t));
+	hook_input = (mom_hook_input_t *)malloc(sizeof(mom_hook_input_t));
 	if (hook_input == NULL) {
 		log_err(errno, __func__, MALLOC_ERR_MSG);
 		return;
@@ -640,34 +628,7 @@ req_deletejob(struct batch_request *preq)
 			pjob->ji_execjob_end_hook_event_started = 1;
 			return;
 		}
-
-#if MOM_ALPS
-	(void)mom_deljob_wait(pjob);
-
-	/*
-	 * The delete job request from Server will have been
-	 * or will be replied to and freed by the
-	 * alps_cancel_reservation code in the sequence of
-	 * functions started with the above call to
-	 * mom_deljob_wait().  Set preq to NULL here so we
-	 * don't try, mistakenly, to use it again.
-	 */
-	pjob->ji_preq = NULL;
-#else
-	pjob->ji_preq = NULL;
-	if (mom_deljob_wait(pjob) > 0) {
-		/* wait till sisters respond */
-		pjob->ji_preq = preq;
-	} else if (numnodes > 1) {
-		/*
-		 * no messages sent, but there are sisters
-		 * must be all down
-		 */
-		req_reject(PBSE_SISCOMM, 0, preq); /* all sis down */
-	} else {
-		reply_ack(preq);	/* no sisters, reply now  */
-	}
-#endif
+	mom_deljob_wait2(pjob);
 	free(hook_input);
 }
 

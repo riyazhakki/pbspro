@@ -3685,7 +3685,7 @@ join_err:
 			/* NULL value passed to hook_input.vnl 				*/
 			/* means to assign vnode list using pjob->ji_host[].	    	*/
 
-			hook_input_execjob_end = (mom_hook_input_t *) malloc (sizeof(mom_hook_input_t));
+			hook_input_execjob_end = (mom_hook_input_t *)malloc(sizeof(mom_hook_input_t));
 			if (hook_input_execjob_end == NULL) {
 				log_err(errno, __func__, MALLOC_ERR_MSG);
 				goto err;
