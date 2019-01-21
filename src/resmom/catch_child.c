@@ -1253,15 +1253,6 @@ send_obit(job *pjob, int exval)
 	struct resc_used_update rud;
 	pbs_list_head vnl_changes;
 
-	if (pjob->ji_execjob_end_hook_event_started)
-		/**
-		 * Now MOM is unblocked while running execjob_end hook
-		 * it is possible control may come here from finish_loop
-		 * (while processing IS_DISCARD_JOB), and may lead to
-		 * receiving IS_BADOBIT response from server.
-		 */
-		return;
-
 #ifndef WIN32
 	/* update pjob with values set from an epilogue hook */
 	/* since these are hooks that are executing in a child process */
@@ -2509,7 +2500,7 @@ del_job_hw(job *pjob)
  * @return Void
  *
  */
-static void
+void
 del_job_resc(job *pjob)
 {
 	/*
@@ -2701,6 +2692,46 @@ mom_deljob_wait2(job *pjob)
 
 /**
  * @brief
+ * send_sisters_deljob_wait	- 
+ * 	Job entry not deleted untill the sisters have rplied or are down
+ *	This version DOES wait for the Sisters to reply, see processing of
+ *	IM_DELETE_JOB_REPLY in mom_comm.c
+ *	IT should only be called for a job for which this is Mother Superior.
+ *
+ * @param[in] pjob - pointer to job structure
+ *
+ * @return int
+ * @retval the number of sisters to whom the request was sent
+ *
+ */
+int
+send_sisters_deljob_wait(job *pjob)
+{
+	int	i;
+
+	if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_HERE) {	/* MS */
+		pjob->ji_qs.ji_substate = JOB_SUBSTATE_DELJOB;
+		pjob->ji_sampletim      = time_now;
+		/*
+		 * The SISTER_KILLDONE flag needs to be reset so
+		 * we can talk to the sisterhood and know when they reply.
+		 */
+		for (i=0; i<pjob->ji_numnodes; i++) {
+			hnodent		*np = &pjob->ji_hosts[i];
+
+			if (np->hn_node == pjob->ji_nodeid)	/* me */
+				continue;
+
+			if (np->hn_sister == SISTER_KILLDONE)
+				np->hn_sister = SISTER_OKAY;
+		}
+		return (send_sisters(pjob, IM_DELETE_JOB_REPLY, NULL));
+	} else
+		return 0;
+
+}
+/**
+ * @brief
  * 	rid_job - rid mom of a job that the server says no longer exists
  *
  * @param[in] jobid - char pointer holding jobid
@@ -2714,7 +2745,7 @@ rid_job(char *jobid)
 	job	*pjob;
 
 	pjob = find_job(jobid);
-	if (pjob)
+	if (pjob && !pjob->ji_hook_running_bg_on)
 		mom_deljob(pjob);
 }
 

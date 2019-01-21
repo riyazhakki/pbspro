@@ -568,7 +568,6 @@ void
 req_deletejob(struct batch_request *preq)
 {
 	job 		*pjob;
-	char 		hook_msg[HOOK_MSG_SIZE+1];
 	mom_hook_input_t	*hook_input = NULL; 
 	mom_hook_output_t	*hook_output = NULL;
 	char *jobid = NULL;
@@ -581,7 +580,7 @@ req_deletejob(struct batch_request *preq)
 		return;
 	}
 
-	if (pjob->ji_execjob_end_hook_event_started)
+	if (pjob->ji_hook_running_bg_on)
 		/* This is a duplicate request just return from here. */ 
 		return;
 
@@ -609,26 +608,60 @@ req_deletejob(struct batch_request *preq)
 	 * prevent sending more OBIT messages
 	 */
 	pjob->ji_preq = preq;
-	hook_input = (mom_hook_input_t *)malloc(sizeof(mom_hook_input_t));
-	if (hook_input == NULL) {
-		log_err(errno, __func__, MALLOC_ERR_MSG);
-		return;
+	if ((hook_input = (mom_hook_input_t *)malloc(
+		sizeof(mom_hook_input_t))) == NULL) {
+			log_err(errno, __func__, MALLOC_ERR_MSG);
+			return;
 	}
 	mom_hook_input_init(hook_input);
 	hook_input->pjob = pjob;
 
+	if ((hook_output = (mom_hook_output_t *)malloc(
+		sizeof(mom_hook_output_t))) == NULL) {
+			log_err(errno, __func__, MALLOC_ERR_MSG);
+			return;
+	}
+	mom_hook_output_init(hook_output);
+	if ((hook_output->reject_errcode =
+		(int *)malloc(sizeof(int))) == NULL) {
+			log_err(errno, __func__, MALLOC_ERR_MSG);
+			return;
+	}
+	memset(hook_output->reject_errcode, 0, sizeof(int));
+
 	if (mom_process_hooks(HOOK_EVENT_EXECJOB_END,
 		PBS_MOM_SERVICE_NAME, mom_host, hook_input,
-		hook_output, hook_msg, sizeof(hook_msg), 1) == HOOK_RUNNING_IN_BACKGROUND) {
-			/* 
-			 * Hook is running in background reply to the batch
-			 * request will be taken care of in run_execjob_end_hooks
-			 * function 
-			 */
-			pjob->ji_execjob_end_hook_event_started = 1;
-			return;
+		hook_output, NULL, 0, 1) == HOOK_RUNNING_IN_BACKGROUND) {
+		
+		pjob->ji_hook_running_bg_on = PBS_BATCH_DeleteJob;
+
+		/*
+		* save number of nodes in sisterhood in case
+		* job is deleted in send_sisters_deljob()
+		*/
+		if (pjob->ji_numnodes > 1) {
+				if (send_sisters_deljob_wait(pjob) == 0) {
+					sprintf(log_buffer, "Unable to send delete job "
+						"request to one or more sisters");
+					log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_JOB,
+						LOG_ERR, pjob->ji_qs.ji_jobid, log_buffer);
+				/*
+				* no messages sent, but there are sisters
+				* must be all down
+				*/
+				pjob->ji_hook_running_bg_on += PBSE_SISCOMM;
+			}
 		}
+		/* 
+		* Hook is running in background reply to the batch
+		* request will be taken care of in mom_process_background_hooks
+		* function 
+		*/
+		return;
+	}
 	mom_deljob_wait2(pjob);
+	free(hook_output->reject_errcode);
+	free(hook_output);
 	free(hook_input);
 }
 
