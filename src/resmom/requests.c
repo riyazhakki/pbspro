@@ -640,7 +640,7 @@ req_deletejob(struct batch_request *preq)
 		* job is deleted in send_sisters_deljob()
 		*/
 		if (pjob->ji_numnodes > 1) {
-				if (send_sisters_deljob_wait(pjob) == 0) {
+			if (send_sisters_deljob_wait(pjob) == 0) {
 					sprintf(log_buffer, "Unable to send delete job "
 						"request to one or more sisters");
 					log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_JOB,

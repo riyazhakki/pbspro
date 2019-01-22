@@ -3719,7 +3719,7 @@ join_err:
 				hook_output_ptr, NULL, 0, 1) ==
 						HOOK_RUNNING_IN_BACKGROUND) {
 					pjob->ji_hook_running_bg_on = command;
-					goto fini;
+					break;
 				}
 
 			if (command == IM_DELETE_JOB_REPLY) {
