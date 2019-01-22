@@ -140,15 +140,21 @@ class TestPbsExecjobEnd(TestFunctional):
         Test to make sure that mom is unblocked with
         execjob_end hook with mutiple jobs
         """
+        pltfom = self.du.get_platform()
+        if pltfom != 'cray':
+            attr = {'resources_available.ncpus': 2}
+            self.server.manager(MGR_CMD_SET, NODE, attr, id=self.mom.shortname)
         hook_name = "execjob_end_logmsg4"
         self.server.create_import_hook(hook_name, self.attr, self.hook_body)
-        j = Job(TEST_USER)
+        # jobs need to land on the same host even in a multi-node setup
+        a = {'Resource_List.select': '1:ncpus=1:host=%s' % self.mom.shortname}
+        j = Job(TEST_USER, attrs=a)
         j.set_sleep_time(1)
         jid1 = self.server.submit(j)
         # jid1 should be in E state, in sleep of execjob_end hook for
         # jid2 submmision.
         self.server.expect(JOB, {'job_state': 'E'}, id=jid1)
-        j = Job(TEST_USER)
+        j = Job(TEST_USER, attrs=a)
         j.set_sleep_time(1)
         jid2 = self.server.submit(j)
         # hook message of jid2 should be logged after the message of jid1 and
@@ -181,6 +187,8 @@ class TestPbsExecjobEnd(TestFunctional):
         """
         if len(self.moms) != 2:
             self.skip_test(reason="need 2 mom hosts: -p moms=<m1>:<m2>")
+        self.momA = self.moms.values()[0]
+        self.momB = self.moms.values()[1]
         hook_name = "execjob_end_logmsg5"
         self.server.create_import_hook(hook_name, self.attr, self.hook_body)
         hook_name = "exechost_periodic_logmsg2"
@@ -190,8 +198,8 @@ class TestPbsExecjobEnd(TestFunctional):
                                  'executed exechost_periodic hook')\n"
                      "e.accept()\n")
         attr = {'event': 'exechost_periodic', 'freq': '3', 'enabled': 'True'}
-        a = {'Resource_List.select': '2:ncpus=1',
-             'Resource_List.place': "scatter"}
+        a = {'Resource_List.select': '1:ncpus=1:host=%s+1:ncpus=1:host=%s' %
+             (self.momA.shortname, self.momB.shortname)}
         j = Job(TEST_USER, attrs=a)
         j.set_sleep_time(1)
         self.server.create_import_hook(hook_name, attr, hook_body)
@@ -230,8 +238,11 @@ class TestPbsExecjobEnd(TestFunctional):
         hook_name = "execjob_end_logmsg6"
         self.server.create_import_hook(hook_name, self.attr, self.hook_body)
         if len(self.moms) == 2:
-            a = {'Resource_List.select': '2:ncpus=1',
-                 'Resource_List.place': "scatter"}
+            self.momA = self.moms.values()[0]
+            self.momB = self.moms.values()[1]
+            a = {'Resource_List.select':
+                 '1:ncpus=1:host=%s+1:ncpus=1:host=%s' %
+                 (self.momA.shortname, self.momB.shortname)}
             j = Job(TEST_USER, attrs=a)
         elif len(self.moms) == 1:
             j = Job(TEST_USER)
