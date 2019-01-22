@@ -842,6 +842,7 @@ run_hook(hook *phook, unsigned int event_type, mom_hook_input_t *hook_input,
 #else	/* Windows */
 	myseq = rand();
 	child = myseq;
+	php->child = child;
 #endif
 
 
@@ -3363,38 +3364,43 @@ void reply_hook_bg(job *pjob)
 	int	n = 0;
 	int	ret = 0;
 	char	jobid[PBS_MAXSVRJOBID+1] = {'0'};
-	struct	batch_request *preq = NULL;
+#if !MOM_ALPS
+	struct	batch_request *preq = pjob->ji_preq;
+#endif
 
-	switch (pjob->ji_hook_running_bg_on) {
-
-		if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_HERE) {/*MS*/
+	if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_HERE) { /*MS*/
+		switch (pjob->ji_hook_running_bg_on) {
 			case PBS_BATCH_DeleteJob:
 			case (PBS_BATCH_DeleteJob + PBSE_SISCOMM):
 				if (pjob->ji_numnodes == 1) {
-#if !MOM_ALPS
+#if MOM_ALPS
+					del_job_resc(pjob);	/* rm tmpdir, cpusets, etc */
 					/*
-					* The delete job request from Server will have been
-					* or will be replied to and freed by the
-					* alps_cancel_reservation code
-					*/
-					preq = pjob->ji_preq;
+					* The delete job request from Server will have
+					* been or will be replied to and freed by the
+					* alps_cancel_reservation code in the sequence
+					* of functions started with the above call to
+					* del_job_resc(). Set preq to NULL here so we
+					* don't try, mistakenly, to use it again.
+					*/ 
 					pjob->ji_preq = NULL;
-#endif
+				}
+#else
+					pjob->ji_preq = NULL;
 					(void) kill_job(pjob, SIGKILL);
 					job_purge(pjob);
 					dorestrict_user();
 					del_job_resc(pjob);	/* rm tmpdir, cpusets, etc */
-#if !MOM_ALPS
 					reply_ack(preq);
 				} else if (pjob->ji_hook_running_bg_on == 
 					(PBS_BATCH_DeleteJob + PBSE_SISCOMM))
 						req_reject(PBSE_SISCOMM, 0, preq); /* all sis down */
+#endif
 				/*
 				* otherwise, job_purge() and dorestrict_user() are called in
 				* mom_comm when all the sisters have replied.  The reply to
 				* the Server is also done there
 				*/
-#endif
 				break;
 
 			case IS_DISCARD_JOB:
@@ -3417,8 +3423,10 @@ void reply_hook_bg(job *pjob)
 				rpp_flush(server_stream);
 				rpp_eom(server_stream); 
 				break;
-		} else { /*SISTER MOM*/
-			case IM_DELETE_JOB2:
+		}
+	} else { /*SISTER MOM*/
+		switch (pjob->ji_hook_running_bg_on) {
+			case IM_DELETE_JOB_REPLY:
 				post_reply(pjob, 0);
 			case IM_DELETE_JOB:
 				mom_deljob(pjob);
@@ -3541,28 +3549,25 @@ mom_process_hooks(unsigned int hook_event, char *req_user, char *req_host,
 	mom_hook_input_t *hook_input, mom_hook_output_t *hook_output, char *hook_msg,
 	size_t msg_len, int update_server)
 {
-	hook			*phook;
-	hook			*phook_next = NULL;
+	char		hook_infile[MAXPATHLEN+1];
+	char		hook_outfile[MAXPATHLEN+1];
+	char		hook_datafile[MAXPATHLEN+1];
+	char		*log_id = NULL;
 	int			rc;
-	pbs_list_head		*head_ptr;
 	int			num_run = 0;
-	char			hook_infile[MAXPATHLEN+1];
-	char			hook_outfile[MAXPATHLEN+1];
-	char			hook_datafile[MAXPATHLEN+1];
-
-	pbs_list_head		vnl_changes;
 	int			set_job_exit = 0;
-	char			*log_id = NULL;
 	int			log_type = 0;
 	int			log_class = 0;
-	job			*pjob = NULL;
-	hook			**last_phook = NULL;
-	/* last hook that executed */
-	unsigned int		*pfail_action = NULL; 	/* holds summation of hook */
-	/* fail_action values */
-	/* of those hook that */
-	/*  executed */
 	int			*reject_errcode = NULL;
+	unsigned int		*pfail_action = NULL;
+	hook		*phook;
+	hook		*phook_next = NULL;
+	hook		**last_phook = NULL;
+	job			*pjob = NULL;
+	pbs_list_head		vnl_changes;
+	pbs_list_head		*head_ptr;
+	mom_process_hooks_params_t		*php = NULL;
+	struct work_task task;
 
 	if (hook_input == NULL) {
 		log_err(-1, __func__, "missing input argument to event");
@@ -3578,7 +3583,6 @@ mom_process_hooks(unsigned int hook_event, char *req_user, char *req_host,
 		last_phook = hook_output->last_phook;
 		pfail_action = hook_output->fail_action;
 	}
-	mom_process_hooks_params_t		*php;
 	if ((php = (mom_process_hooks_params_t *)malloc(
 		sizeof(mom_process_hooks_params_t))) == NULL) {
 		log_err(errno, __func__, MALLOC_ERR_MSG);
@@ -3826,7 +3830,6 @@ mom_process_hooks(unsigned int hook_event, char *req_user, char *req_host,
 		if (php->parent_wait == 0)
 			return (HOOK_RUNNING_IN_BACKGROUND); 
 
-		struct work_task task;
 		task.wt_parm1 = (void *)phook;
 		task.wt_parm2 = (void *)php;
 		if ((rc = post_run_hook(&task)) != 1)
