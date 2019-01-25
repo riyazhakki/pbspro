@@ -175,6 +175,7 @@ typedef struct mom_process_hooks_params {
 	char *req_host;
 	int update_svr;
 	int parent_wait;
+	unsigned int hook_event;
 	pid_t child;
 	size_t msg_len;
 	mom_hook_input_t *hook_input;

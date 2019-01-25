@@ -804,9 +804,10 @@ run_hook(hook *phook, unsigned int event_type, mom_hook_input_t *hook_input,
 				log_err(errno, __func__, msg_err_malloc);
 				return (-1);
 			}
-			ptask->wt_parm2 = (void *)php;
+		 	if (php)
+				ptask->wt_parm2 = (void *)php;
 			return (0);	/* no hook output file at this time */
-		} else
+		} else if (php)
 			php->child = child;
 
 
@@ -842,7 +843,8 @@ run_hook(hook *phook, unsigned int event_type, mom_hook_input_t *hook_input,
 #else	/* Windows */
 	myseq = rand();
 	child = myseq;
-	php->child = child;
+	if (php)
+		php->child = child;
 #endif
 
 
@@ -1412,9 +1414,9 @@ run_hook_exit:
 		ptask->wt_aux2 = myseq;
 		addpid(pio.pi.hProcess);
 		win_pclose2(&pio); /* closes all handles except the process handle */
+		ptask->wt_parm2 = (void *)php;
 		return (0);	/* no hook output file at this time */
 	} else if (runas_jobuser) {
-
 		if (pwdp == NULL) {
 			log_err(-1, __func__,
 				"runas_jobuser does not have credential set!");
@@ -1444,6 +1446,8 @@ run_hook_exit:
 		win_pclose(&pio);
 		(void)win_alarm(0, NULL);
 	}
+	if (php)
+		php->child = child;
 run_hook_exit:
 	if (fp != NULL)
 		fclose(fp);
@@ -3134,14 +3138,14 @@ post_run_hook(struct work_task *ptask)
 		return -1;
 	}
 
-	if (phook->event == HOOK_EVENT_EXECHOST_PERIODIC) {
-		post_periodic_hook(ptask);
-		return 1;
-	}
-
 	if ((php = (mom_process_hooks_params_t *) ptask->wt_parm2) == NULL) {
 		log_err(-1, __func__, "missing hook params argument to event");
 		return -1;
+	}
+
+	if (php->hook_event == HOOK_EVENT_EXECHOST_PERIODIC) {
+		post_periodic_hook(ptask);
+		return 1;
 	}
 
 	if ((hook_input = (mom_hook_input_t *) php->hook_input) == NULL) {
@@ -3150,9 +3154,10 @@ post_run_hook(struct work_task *ptask)
 	}
 	
 	pjob = (job *)hook_input->pjob;
+	CLEAR_HEAD(vnl_changes);
 
-	if ((phook->event == HOOK_EVENT_EXECHOST_PERIODIC) ||
-		(phook->event == HOOK_EVENT_EXECHOST_STARTUP)) {
+	if ((php->hook_event == HOOK_EVENT_EXECHOST_PERIODIC) ||
+		(php->hook_event == HOOK_EVENT_EXECHOST_STARTUP)) {
 		log_id = phook->hook_name;
 		log_type = PBSEVENT_DEBUG2;
 		log_class = PBS_EVENTCLASS_HOOK;
@@ -3168,7 +3173,6 @@ post_run_hook(struct work_task *ptask)
 		mypid = ptask->wt_event;
 		wstat = ptask->wt_aux;
 
-		CLEAR_HEAD(vnl_changes);
 
 		log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_HOOK,
 			LOG_INFO, phook->hook_name, "finished");
@@ -3180,10 +3184,10 @@ post_run_hook(struct work_task *ptask)
 				snprintf(log_buffer, LOG_BUF_SIZE-1,
 					"%s hook '%s' encountered an exception, "
 					"request rejected",
-					hook_event_as_string(phook->event), phook->hook_name);
+					hook_event_as_string(php->hook_event), phook->hook_name);
 				log_event(log_type, log_class,
 					LOG_ERR, log_id, log_buffer);
-				record_job_last_hook_executed(phook->event,
+				record_job_last_hook_executed(php->hook_event,
 					phook->hook_name, pjob, hook_outfile);
 				hook_error_flag = 1;
 				break;
@@ -3191,17 +3195,17 @@ post_run_hook(struct work_task *ptask)
 				snprintf(log_buffer, LOG_BUF_SIZE-1,
 					"alarm call while running %s hook '%s', "
 					"request rejected",
-					hook_event_as_string(phook->event), phook->hook_name);
+					hook_event_as_string(php->hook_event), phook->hook_name);
 				log_event(log_type, log_class, LOG_ERR, log_id,
 					log_buffer);
-				record_job_last_hook_executed(phook->event,
+				record_job_last_hook_executed(php->hook_event,
 					phook->hook_name, pjob, hook_outfile);
 				hook_error_flag = 1;
 				break;
 			default:
 				snprintf(log_buffer, LOG_BUF_SIZE-1,
 					"Non-zero exit status %d encountered for %s hook",
-					wstat, hook_event_as_string(phook->event));
+					wstat, hook_event_as_string(php->hook_event));
 				log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
 					LOG_ERR, phook->hook_name, log_buffer);
 				hook_error_flag = 1;	/* hook results are invalid */
@@ -3212,14 +3216,16 @@ post_run_hook(struct work_task *ptask)
 		/* hook results path */
 		snprintf(hook_outfile, MAXPATHLEN, FMT_HOOK_OUTFILE,
 			path_hooks_workdir,
-			hook_event_as_string(phook->event),
+			hook_event_as_string(php->hook_event),
 			phook->hook_name, mypid);
 
 		/* hook exited normally, get results from file  */
 		if (get_hook_results(hook_outfile, &accept_flag, &reject_flag,
 			reject_msg, sizeof(reject_msg), &reject_rerunjob,
 			&reject_deletejob, &reboot_flag, reboot_cmd,
-			HOOK_BUF_SIZE, &vnl_changes, pjob, phook, 0, NULL) != 0) {
+			HOOK_BUF_SIZE, &vnl_changes, pjob, phook,
+			(php->hook_event == HOOK_EVENT_EXECHOST_STARTUP)?0:!php->update_svr,
+			php->hook_output) != 0) {
 			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
 				LOG_ERR, phook->hook_name,
 				"Failed to get hook results");
@@ -3276,14 +3282,14 @@ post_run_hook(struct work_task *ptask)
 		if (php->hook_msg != NULL) {
 			snprintf(php->hook_msg, php->msg_len-1,
 				"%s request rejected by '%s'",
-				hook_event_as_string(phook->event),
+				hook_event_as_string(php->hook_event),
 				phook->hook_name);
 			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
 				LOG_ERR, phook->hook_name, php->hook_msg);
 		} else {
 			snprintf(log_buffer, sizeof(log_buffer),
 				"%s request rejected by '%s'",
-				hook_event_as_string(phook->event),
+				hook_event_as_string(php->hook_event),
 				phook->hook_name);
 			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
 				LOG_ERR, phook->hook_name, log_buffer);
@@ -3337,12 +3343,12 @@ post_run_hook(struct work_task *ptask)
 		/* Backround hook */
 		/* Create task to check and run next hook script */
 		new_task = set_task(WORK_Immed, 0,
-						(void*)mom_process_background_hooks, phook);
+						(void *)mom_process_background_hooks, phook);
 		if (!new_task) 
 			log_err(errno, __func__, 
 				"Unable to set task for mom_process_background_hooks");
 		else
-			new_task->wt_parm2 = php;
+			new_task->wt_parm2 = (void *)php;
 	}
 
 	return 1;
@@ -3500,7 +3506,7 @@ void reply_hook_bg(job *pjob)
 		goto fini;
  	}
 
-	run_hook(phook, phook->event, php->hook_input,
+	run_hook(phook, php->hook_event, php->hook_input,
 			php->req_user, php->req_host, 0, (void *)post_run_hook,
 			hook_infile, hook_outfile, hook_datafile, MAXPATHLEN+1, php);
 	return;
@@ -3588,6 +3594,7 @@ mom_process_hooks(unsigned int hook_event, char *req_user, char *req_host,
 		log_err(errno, __func__, MALLOC_ERR_MSG);
 		return -1;
 	}
+	php->hook_event = hook_event;
 	php->req_user	= req_user;
 	php->req_host	= req_host;
 	php->hook_msg	= hook_msg;
