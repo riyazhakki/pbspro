@@ -658,6 +658,7 @@ vnl_add_vnode_entries(vnl_t *vnl, vmpiprocs *vnode_entry, int num_vnodes,
  * @param[in/out] file_data	- be filled in by the hook server data file used
  * @param[in]	  file_size	- max size of file_in and file_out string
  *				  buffers.
+ * @param[in]	  php - holds the arguments from mom_process_hooks function
  *
  *
  * @return int		the exit value of the executing hook script
@@ -3122,10 +3123,10 @@ post_run_hook(struct work_task *ptask)
 	char   hook_outfile[MAXPATHLEN+1] = {'\0'};
 	pid_t  mypid = 0;
 	hook   *phook	= NULL;
-	mom_hook_input_t *hook_input 	= NULL;
-	job *pjob	= NULL;
+	mom_hook_input_t *hook_input = NULL;
+	job   *pjob = NULL;
 	struct work_task *new_task;
-	pbs_list_head	vnl_changes;
+	pbs_list_head   vnl_changes;
 	mom_process_hooks_params_t *php;
 
 	if (ptask == NULL) {
@@ -3378,9 +3379,14 @@ void reply_hook_bg(job *pjob)
 		switch (pjob->ji_hook_running_bg_on) {
 			case PBS_BATCH_DeleteJob:
 			case (PBS_BATCH_DeleteJob + PBSE_SISCOMM):
-				if (pjob->ji_numnodes == 1) {
-#if MOM_ALPS
+				if ((pjob->ji_numnodes == 1) ||(pjob->ji_hook_running_bg_on == 
+					(PBS_BATCH_DeleteJob + PBSE_SISCOMM))) {
 					del_job_resc(pjob);	/* rm tmpdir, cpusets, etc */
+					pjob->ji_preq = NULL;
+					(void) kill_job(pjob, SIGKILL);
+					job_purge(pjob);
+					dorestrict_user();
+#if !MOM_ALPS
 					/*
 					* The delete job request from Server will have
 					* been or will be replied to and freed by the
@@ -3389,19 +3395,13 @@ void reply_hook_bg(job *pjob)
 					* del_job_resc(). Set preq to NULL here so we
 					* don't try, mistakenly, to use it again.
 					*/ 
-					pjob->ji_preq = NULL;
-				}
-#else
-					pjob->ji_preq = NULL;
-					(void) kill_job(pjob, SIGKILL);
-					job_purge(pjob);
-					dorestrict_user();
-					del_job_resc(pjob);	/* rm tmpdir, cpusets, etc */
-					reply_ack(preq);
-				} else if (pjob->ji_hook_running_bg_on == 
-					(PBS_BATCH_DeleteJob + PBSE_SISCOMM))
-						req_reject(PBSE_SISCOMM, 0, preq); /* all sis down */
+					if (pjob->ji_numnodes == 1) 
+						reply_ack(preq);
+					else if (pjob->ji_hook_running_bg_on == 
+						(PBS_BATCH_DeleteJob + PBSE_SISCOMM))
+							req_reject(PBSE_SISCOMM, 0, preq); /* sis down */
 #endif
+				}
 				/*
 				* otherwise, job_purge() and dorestrict_user() are called in
 				* mom_comm when all the sisters have replied.  The reply to
@@ -3417,13 +3417,13 @@ void reply_hook_bg(job *pjob)
 				job_purge(pjob);
 				dorestrict_user();
 
-				if ((ret=is_compose(server_stream, IS_DISCARD_DONE)) != DIS_SUCCESS)
+				if ((ret = is_compose(server_stream, IS_DISCARD_DONE)) != DIS_SUCCESS)
 					goto err;
 
-				if ((ret=diswst(server_stream, jobid)) != DIS_SUCCESS)
+				if ((ret = diswst(server_stream, jobid)) != DIS_SUCCESS)
 					goto err;
 
-				if ((ret=diswsi(server_stream, n)) != DIS_SUCCESS)
+				if ((ret = diswsi(server_stream, n)) != DIS_SUCCESS)
 					goto err;
 
 				rpp_flush(server_stream);
@@ -3605,7 +3605,6 @@ mom_process_hooks(unsigned int hook_event, char *req_user, char *req_host,
 	php->parent_wait	= 1;
 
 	CLEAR_HEAD(vnl_changes);
-	php->parent_wait = 1;
 	switch (hook_event) {
 
 		case HOOK_EVENT_EXECJOB_BEGIN:

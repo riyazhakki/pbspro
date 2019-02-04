@@ -2693,10 +2693,10 @@ mom_deljob_wait2(job *pjob)
 /**
  * @brief
  * send_sisters_deljob_wait	- 
- * 	Job entry not deleted untill the sisters have rplied or are down
+ * 	Job entry is not deleted until the sisters have replied or are down
  *	This version DOES wait for the Sisters to reply, see processing of
  *	IM_DELETE_JOB_REPLY in mom_comm.c
- *	IT should only be called for a job for which this is Mother Superior.
+ *	It should only be called for a job for which this is Mother Superior.
  *
  * @param[in] pjob - pointer to job structure
  *
