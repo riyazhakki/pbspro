@@ -3125,9 +3125,9 @@ post_run_hook(struct work_task *ptask)
 	hook   *phook	= NULL;
 	mom_hook_input_t *hook_input = NULL;
 	job   *pjob = NULL;
-	struct work_task *new_task;
+	struct work_task *new_task = NULL;
 	pbs_list_head   vnl_changes;
-	mom_process_hooks_params_t *php;
+	mom_process_hooks_params_t *php = NULL;
 
 	if (ptask == NULL) {
 		log_err(-1, __func__, "missing ptask argument to event");
@@ -3181,6 +3181,7 @@ post_run_hook(struct work_task *ptask)
 		switch (wstat) {
 			case 0:
 				break;
+			case -2:	/* unhandled exception return on Windows */
 			case 254:
 				snprintf(log_buffer, LOG_BUF_SIZE-1,
 					"%s hook '%s' encountered an exception, "
@@ -3192,6 +3193,12 @@ post_run_hook(struct work_task *ptask)
 					phook->hook_name, pjob, hook_outfile);
 				hook_error_flag = 1;
 				break;
+				/* -3 return from pbs_python == 2^8-3, but run_hook() */
+				/* itself could return "-3" if it catches the alarm()   */
+				/* to the process first. Both run_hook() code here, and */
+				/* pbs_python program set alarm signals. One or the   */
+				/* other would catch it first */
+			case -3:	/* somewhere in this file, we do return -3 */
 			case 253:
 				snprintf(log_buffer, LOG_BUF_SIZE-1,
 					"alarm call while running %s hook '%s', "
@@ -3370,7 +3377,7 @@ void reply_hook_bg(job *pjob)
 {
 	int	n = 0;
 	int	ret = 0;
-	char	jobid[PBS_MAXSVRJOBID+1] = {'0'};
+	char	jobid[PBS_MAXSVRJOBID+1] = {'\0'};
 #if !MOM_ALPS
 	struct	batch_request *preq = pjob->ji_preq;
 #endif
@@ -3642,6 +3649,7 @@ mom_process_hooks(unsigned int hook_event, char *req_user, char *req_host,
 			head_ptr = &svr_execjob_resize_hooks;
 			break;
 		default:
+			free (php);
 			return (-1); /* unexpected event encountered */
 	}
 
