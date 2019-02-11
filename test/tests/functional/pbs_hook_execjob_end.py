@@ -87,14 +87,15 @@ class TestPbsExecjobEnd(TestFunctional):
             date_time1, '%m/%d/%Y %H:%M:%S')))
         # following message should be logged while execjob_end hook is in sleep
         (_, str1) = self.mom.log_match("executed exechost_periodic hook",
-                                       starttime=epoch1-1, endtime=epoch1+10,
+                                       starttime=epoch1 - 1,
+                                       endtime=epoch1 + 10,
                                        n=100, max_attempts=10, interval=1)
         date_time2 = str1.split(";")[0]
         epoch2 = int(time.mktime(time.strptime(
             date_time2, '%m/%d/%Y %H:%M:%S')))
         (_, str1) = self.mom.log_match(
             "Job;%s;execjob_end hook ended" %
-            jid, starttime=epoch2-1, n=100,
+            jid, starttime=epoch2 - 1, n=100,
             max_attempts=10, interval=2)
         date_time3 = str1.split(";")[0]
         self.logger.info(
@@ -109,17 +110,18 @@ class TestPbsExecjobEnd(TestFunctional):
         """
         hook_name1 = "execjob_end_logmsg1"
         hook_body_accept = ("import pbs\n"
-                     "e = pbs.event()\n"
-                     "pbs.logjobmsg(e.job.id, \
+                            "e = pbs.event()\n"
+                            "pbs.logjobmsg(e.job.id, \
                                   'executed %s hook' % e.hook_name)\n"
-                     "e.accept()\n")
+                            "e.accept()\n")
         attr = {'event': 'execjob_end', 'order': '1', 'enabled': 'True'}
         self.server.create_import_hook(hook_name1, attr, hook_body_accept)
         hook_name = "execjob_end_logmsg2"
-        hook_body_reject = ("import pbs\n"
-                      "e = pbs.event()\n"
-                      "pbs.logjobmsg(e.job.id, 'executed execjob_end hook')\n"
-                      "e.reject('Job is rejected')\n")
+        hook_body_reject = (
+            "import pbs\n"
+            "e = pbs.event()\n"
+            "pbs.logjobmsg(e.job.id, 'executed execjob_end hook')\n"
+            "e.reject('Job is rejected')\n")
         attr = {'event': 'execjob_end', 'order': '2', 'enabled': 'True'}
         self.server.create_import_hook(hook_name, attr, hook_body_reject)
         hook_name2 = "execjob_end_logmsg3"
@@ -167,14 +169,14 @@ class TestPbsExecjobEnd(TestFunctional):
             date_time1, '%m/%d/%Y %H:%M:%S')))
         # hook message for jid2 should appear while hook is in sleep for jid1
         (_, str1) = self.mom.log_match("Job;%s;executed execjob_end hook" %
-                                       jid2, starttime=epoch1-1,
-                                       endtime=epoch1+10,
+                                       jid2, starttime=epoch1 - 1,
+                                       endtime=epoch1 + 10,
                                        n=100, max_attempts=10, interval=1)
         date_time1 = str1.split(";")[0]
         epoch1 = int(time.mktime(time.strptime(
             date_time1, '%m/%d/%Y %H:%M:%S')))
         (_, str1) = self.mom.log_match("Job;%s;execjob_end hook ended" % jid1,
-                                       starttime=epoch1-1,
+                                       starttime=epoch1 - 1,
                                        n=100, max_attempts=10, interval=2)
         self.mom.log_match("Job;%s;execjob_end hook ended" % jid2,
                            n=100, max_attempts=10, interval=2)
@@ -211,14 +213,15 @@ class TestPbsExecjobEnd(TestFunctional):
             epoch1 = int(time.mktime(time.strptime(
                 date_time1, '%m/%d/%Y %H:%M:%S')))
             (_, str1) = mom.log_match("executed exechost_periodic hook",
-                                      starttime=epoch1-1, endtime=epoch1+10,
+                                      starttime=epoch1 - 1,
+                                      endtime=epoch1 + 10,
                                       n=100, max_attempts=10, interval=1)
             date_time2 = str1.split(";")[0]
             epoch2 = int(time.mktime(time.strptime(
                 date_time2, '%m/%d/%Y %H:%M:%S')))
             (_, str1) = mom.log_match(
                 "Job;%s;execjob_end hook ended" %
-                jid, starttime=epoch2-1, n=100,
+                jid, starttime=epoch2 - 1, n=100,
                 max_attempts=10, interval=2)
             date_time3 = str1.split(";")[0]
             msg = "Got expected log_msg on host:%s" % host
