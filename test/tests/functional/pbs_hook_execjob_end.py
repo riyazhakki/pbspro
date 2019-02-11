@@ -108,23 +108,23 @@ class TestPbsExecjobEnd(TestFunctional):
         with one of the hooks rejecting the job.
         """
         hook_name1 = "execjob_end_logmsg1"
-        hook_body = ("import pbs\n"
+        hook_body_accept = ("import pbs\n"
                      "e = pbs.event()\n"
                      "pbs.logjobmsg(e.job.id, \
                                   'executed %s hook' % e.hook_name)\n"
                      "e.accept()\n")
         attr = {'event': 'execjob_end', 'order': '1', 'enabled': 'True'}
-        self.server.create_import_hook(hook_name1, attr, hook_body)
+        self.server.create_import_hook(hook_name1, attr, hook_body_accept)
         hook_name = "execjob_end_logmsg2"
-        hook_body1 = ("import pbs\n"
+        hook_body_reject = ("import pbs\n"
                       "e = pbs.event()\n"
                       "pbs.logjobmsg(e.job.id, 'executed execjob_end hook')\n"
                       "e.reject('Job is rejected')\n")
         attr = {'event': 'execjob_end', 'order': '2', 'enabled': 'True'}
-        self.server.create_import_hook(hook_name, attr, hook_body1)
+        self.server.create_import_hook(hook_name, attr, hook_body_reject)
         hook_name2 = "execjob_end_logmsg3"
         attr = {'event': 'execjob_end', 'order': '170', 'enabled': 'True'}
-        self.server.create_import_hook(hook_name2, attr, hook_body)
+        self.server.create_import_hook(hook_name2, attr, hook_body_accept)
         j = Job(TEST_USER)
         j.set_sleep_time(1)
         jid = self.server.submit(j)

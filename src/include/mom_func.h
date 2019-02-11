@@ -193,7 +193,7 @@ extern int   kill_task(pbs_task *, int sig, int dir);
 extern void  del_job_hw(job *);
 extern void  mom_deljob(job *);
 extern void  mom_deljob_wait2(job *);
-extern int  send_sisters_deljob_wait(job *);
+extern int   send_sisters_deljob_wait(job *);
 extern void  del_job_resc(job *);
 extern int   do_mom_action_script(int, job *, pbs_task *, char *,
 	void(*)(job *, int));

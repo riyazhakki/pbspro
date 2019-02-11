@@ -3121,7 +3121,6 @@ post_run_hook(struct work_task *ptask)
 	char   reject_msg[HOOK_MSG_SIZE+1] = {'\0'};
 	char   reboot_cmd[HOOK_BUF_SIZE]  = {'\0'};
 	char   hook_outfile[MAXPATHLEN+1] = {'\0'};
-	pid_t  mypid = 0;
 	hook   *phook	= NULL;
 	mom_hook_input_t *hook_input = NULL;
 	job   *pjob = NULL;
@@ -3168,12 +3167,16 @@ post_run_hook(struct work_task *ptask)
 		log_class = PBS_EVENTCLASS_JOB;
 	}
 
-	mypid = php->child;
+	/* hook results path */
+	snprintf(hook_outfile, MAXPATHLEN, FMT_HOOK_OUTFILE,
+		path_hooks_workdir,
+		hook_event_as_string(php->hook_event),
+		phook->hook_name, 
+		(pid_t)((php->parent_wait)?php->child:ptask->wt_event));
+
 	if (php->parent_wait == 0) {
 		/* background hook */
-		mypid = ptask->wt_event;
 		wstat = ptask->wt_aux;
-
 
 		log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_HOOK,
 			LOG_INFO, phook->hook_name, "finished");
@@ -3221,12 +3224,6 @@ post_run_hook(struct work_task *ptask)
 	}
 
 	if (hook_error_flag == 0) {
-		/* hook results path */
-		snprintf(hook_outfile, MAXPATHLEN, FMT_HOOK_OUTFILE,
-			path_hooks_workdir,
-			hook_event_as_string(php->hook_event),
-			phook->hook_name, mypid);
-
 		/* hook exited normally, get results from file  */
 		if (get_hook_results(hook_outfile, &accept_flag, &reject_flag,
 			reject_msg, sizeof(reject_msg), &reject_rerunjob,
