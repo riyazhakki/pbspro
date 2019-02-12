@@ -35,6 +35,7 @@
 # "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
 # trademark licensing policies.
 from tests.functional import *
+from ptl.utils.pbs_logutils import PBSLogUtils
 
 
 class TestPbsExecjobEnd(TestFunctional):
@@ -43,6 +44,7 @@ class TestPbsExecjobEnd(TestFunctional):
     execjob_end hook to execute such that
     pbs_mom is not blocked upon execution.
     """
+    logutils = PBSLogUtils()
 
     def setUp(self):
         TestFunctional.setUp(self)
@@ -83,16 +85,14 @@ class TestPbsExecjobEnd(TestFunctional):
         (_, str1) = self.mom.log_match("Job;%s;executed execjob_end hook" %
                                        jid, n=100, max_attempts=10, interval=2)
         date_time1 = str1.split(";")[0]
-        epoch1 = int(time.mktime(time.strptime(
-            date_time1, '%m/%d/%Y %H:%M:%S')))
+        epoch1 = self.logutils.convert_date_time(date_time1)
         # following message should be logged while execjob_end hook is in sleep
         (_, str1) = self.mom.log_match("executed exechost_periodic hook",
                                        starttime=epoch1 - 1,
                                        endtime=epoch1 + 10,
                                        n=100, max_attempts=10, interval=1)
         date_time2 = str1.split(";")[0]
-        epoch2 = int(time.mktime(time.strptime(
-            date_time2, '%m/%d/%Y %H:%M:%S')))
+        epoch2 = self.logutils.convert_date_time(date_time2)
         (_, str1) = self.mom.log_match(
             "Job;%s;execjob_end hook ended" %
             jid, starttime=epoch2 - 1, n=100,
@@ -165,16 +165,14 @@ class TestPbsExecjobEnd(TestFunctional):
                                        jid1, n=100, max_attempts=10,
                                        interval=2)
         date_time1 = str1.split(";")[0]
-        epoch1 = int(time.mktime(time.strptime(
-            date_time1, '%m/%d/%Y %H:%M:%S')))
+        epoch1 = self.logutils.convert_date_time(date_time1)
         # hook message for jid2 should appear while hook is in sleep for jid1
         (_, str1) = self.mom.log_match("Job;%s;executed execjob_end hook" %
                                        jid2, starttime=epoch1 - 1,
                                        endtime=epoch1 + 10,
                                        n=100, max_attempts=10, interval=1)
         date_time1 = str1.split(";")[0]
-        epoch1 = int(time.mktime(time.strptime(
-            date_time1, '%m/%d/%Y %H:%M:%S')))
+        epoch1 = self.logutils.convert_date_time(date_time1)
         (_, str1) = self.mom.log_match("Job;%s;execjob_end hook ended" % jid1,
                                        starttime=epoch1 - 1,
                                        n=100, max_attempts=10, interval=2)
@@ -210,15 +208,13 @@ class TestPbsExecjobEnd(TestFunctional):
                                       jid, n=100, max_attempts=10,
                                       interval=2)
             date_time1 = str1.split(";")[0]
-            epoch1 = int(time.mktime(time.strptime(
-                date_time1, '%m/%d/%Y %H:%M:%S')))
+            epoch1 = self.logutils.convert_date_time(date_time1)
             (_, str1) = mom.log_match("executed exechost_periodic hook",
                                       starttime=epoch1 - 1,
                                       endtime=epoch1 + 10,
                                       n=100, max_attempts=10, interval=1)
             date_time2 = str1.split(";")[0]
-            epoch2 = int(time.mktime(time.strptime(
-                date_time2, '%m/%d/%Y %H:%M:%S')))
+            epoch2 = self.logutils.convert_date_time(date_time2)
             (_, str1) = mom.log_match(
                 "Job;%s;execjob_end hook ended" %
                 jid, starttime=epoch2 - 1, n=100,

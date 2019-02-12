@@ -3574,9 +3574,9 @@ mom_process_hooks(unsigned int hook_event, char *req_user, char *req_host,
 	hook		*phook_next = NULL;
 	hook		**last_phook = NULL;
 	job			*pjob = NULL;
-	pbs_list_head		vnl_changes;
-	pbs_list_head		*head_ptr;
-	mom_process_hooks_params_t		*php = NULL;
+	pbs_list_head vnl_changes;
+	pbs_list_head *head_ptr;
+	mom_process_hooks_params_t *php = NULL;
 	struct work_task task;
 
 	if (hook_input == NULL) {
@@ -3605,8 +3605,8 @@ mom_process_hooks(unsigned int hook_event, char *req_user, char *req_host,
 	php->msg_len	= msg_len;
 	php->update_svr	= update_server;
 	php->hook_input	= hook_input;
-	php->hook_output	= hook_output;
-	php->parent_wait	= 1;
+	php->hook_output = hook_output;
+	php->parent_wait = 1;
 
 	CLEAR_HEAD(vnl_changes);
 	switch (hook_event) {

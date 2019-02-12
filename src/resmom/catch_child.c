@@ -2711,12 +2711,12 @@ send_sisters_deljob_wait(job *pjob)
 
 	if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_HERE) {	/* MS */
 		pjob->ji_qs.ji_substate = JOB_SUBSTATE_DELJOB;
-		pjob->ji_sampletim      = time_now;
+		pjob->ji_sampletim = time_now;
 		/*
 		 * The SISTER_KILLDONE flag needs to be reset so
 		 * we can talk to the sisterhood and know when they reply.
 		 */
-		for (i=0; i<pjob->ji_numnodes; i++) {
+		for (i = 0; i < pjob->ji_numnodes; i++) {
 			hnodent		*np = &pjob->ji_hosts[i];
 
 			if (np->hn_node == pjob->ji_nodeid)	/* me */
