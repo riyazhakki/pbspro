@@ -585,6 +585,7 @@ struct job {
 	int		ji_ports[2];	/* ports for stdout/err */
 	int		ji_hook_running_bg_on; /* set when hook starts in the background*/
 #else					/* END Mom ONLY -  start Server ONLY */
+	int		ji_reque_pending;
 	struct batch_request *ji_prunreq; /* outstanding runjob request */
 	pbs_list_head	ji_svrtask;	/* links to svr work_task list */
 	struct pbs_queue  *ji_qhdr;	/* current queue header */

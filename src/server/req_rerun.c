@@ -466,7 +466,11 @@ req_rerunjob2(struct batch_request *preq, job *pjob)
 
 		pjob->ji_qs.ji_substate = JOB_SUBSTATE_RERUN3;
 		discard_job(pjob, "Force rerun", 1);
-		force_reque(pjob);
+		/**
+		 * force_reque will be called in post_discard_job,
+		 * after receiving IS_DISCARD_DONE from the MOM.
+		 */
+		pjob->ji_reque_pending=1;
 		reply_ack(preq);
 		return;
 

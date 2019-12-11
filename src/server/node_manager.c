@@ -782,6 +782,11 @@ post_discard_job(job *pjob, mominfo_t *pmom, int newstate)
 	char	        *downmom = NULL;
 	struct jbdscrd  *pdsc;
 
+	if (pjob->ji_reque_pending){
+		force_reque(pjob);
+		pjob->ji_reque_pending=0;
+	}
+		
 	if (pjob->ji_discard == NULL)
 		return;
 
