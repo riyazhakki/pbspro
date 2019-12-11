@@ -854,7 +854,7 @@ typedef struct	infoent {
 #define IM_RESTART		16
 #define IM_DELETE_JOB		17
 #define IM_REQUEUE		18
-#define	IM_DELETE_JOB_REPLY	19
+/* skip 19 to avoid confilict with IS_DISCARD_JOB */
 #define IM_SETUP_JOB		20
 #define IM_DELETE_JOB2		21	/* sent by sister mom to delete job early */
 #define IM_SEND_RESC		22
@@ -862,6 +862,7 @@ typedef struct	infoent {
 #define IM_EXEC_PROLOGUE	24
 #define IM_CRED 		25
 #define IM_PMIX			26
+#define	IM_DELETE_JOB_REPLY	27
 
 #define IM_ERROR		99
 #define IM_ERROR2		100
