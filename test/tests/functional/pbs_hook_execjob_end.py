@@ -336,3 +336,31 @@ class TestPbsExecjobEnd(TestFunctional):
         self.momB.start()
         # Verify sister mom is not down
         self.assertTrue(self.momB.isUp())
+
+    def test_rerun_on_epilogue_hook(self):
+        """
+        Test force qrerun when epilogue hook is running
+        """
+        hook_name = "epiend_hook"
+        hook_body = """
+import pbs
+import time
+e = pbs.event()
+
+if e.type == pbs.EXECJOB_EPILOGUE:
+    hook_type = "EXECJOB_EPILOGUE"
+elif e.type == pbs.EXECJOB_END:
+    hook_type = "EXECJOB_END"
+pbs.logjobmsg(e.job.id, "starting hook event %s" % (hook_type))
+time.sleep(5)
+"""
+        attr = {'event': 'execjob_epilogue,execjob_end', 'enabled': 'True'}
+        self.server.create_import_hook(hook_name, attr, hook_body)
+        j = Job(TEST_USER)
+        j.set_sleep_time(1)
+        jid = self.server.submit(j)
+        self.mom.log_match("starting hook event EXECJOB_EPILOGUE")
+        # Force rerun job
+        self.server.rerunjob(jid, extend='force')
+        self.mom.log_match("starting hook event EXECJOB_END")
+        self.server.expect(JOB, {'job_state': 'R'}, jid)
