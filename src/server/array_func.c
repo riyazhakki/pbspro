@@ -555,6 +555,24 @@ get_subjob_state(job *parent, int iindx)
 }
 /**
  * @brief
+ * 		get_subjob_substate - return the substate of a subjob given by the parent job
+ * 		and integer index into the table for the subjob
+ *
+ * @param[in]	parent - pointer to the parent job
+ * @param[in]	iindx - first number of range
+ *
+ * @return	substate
+ * @retval	-1	-  error
+ */
+int
+get_subjob_substate(job *parent, int iindx)
+{
+	if (iindx == -1)
+		return -1;
+	return (parent->ji_ajtrk->tkm_tbl[iindx].trk_substate);
+}
+/**
+ * @brief
  * 		update_subjob_state_ct - update the "array_state_count" attribute of an
  * 		array job
  *

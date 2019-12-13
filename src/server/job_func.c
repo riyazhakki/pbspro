@@ -398,7 +398,6 @@ job_alloc(void)
 	pj->ji_stderr = 0;
 	pj->ji_setup = NULL;
 #else	/* SERVER */
-	pj->ji_reque_pending = 0;
 	pj->ji_prunreq = NULL;
 	pj->ji_pmt_preq = NULL;
 	CLEAR_HEAD(pj->ji_svrtask);

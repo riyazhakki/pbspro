@@ -782,14 +782,11 @@ post_discard_job(job *pjob, mominfo_t *pmom, int newstate)
 	char	        *downmom = NULL;
 	struct jbdscrd  *pdsc;
 
-	if (pjob->ji_reque_pending){
-		force_reque(pjob);
-		pjob->ji_reque_pending=0;
-	}
-		
-	if (pjob->ji_discard == NULL)
+	if (pjob->ji_discard == NULL) {
+		if (pjob->ji_qs.ji_substate == JOB_SUBSTATE_WAITING_DISCARD)
+			force_reque(pjob);
 		return;
-
+	}
 	if (pmom != NULL) {
 		for (pdsc = pjob->ji_discard; pdsc->jdcd_mom; ++pdsc) {
 			if (pdsc->jdcd_mom == pmom) {
@@ -845,8 +842,14 @@ post_discard_job(job *pjob, mominfo_t *pmom, int newstate)
 		return;
 	}
 
-	if (pjob->ji_qs.ji_substate == JOB_SUBSTATE_RERUN3) {
-		static char ndreque[] = "Job requeued, execution node %s down";
+	if (pjob->ji_qs.ji_substate == JOB_SUBSTATE_RERUN3 || pjob->ji_qs.ji_substate == JOB_SUBSTATE_WAITING_DISCARD) {
+		
+		static char *ndreque;
+
+		if (pjob->ji_qs.ji_substate == JOB_SUBSTATE_RERUN3)
+			ndreque = "Job requeued, execution node %s down";
+		else
+			ndreque = "Job requeued, discard response received";
 
 		/*
 		 * Job to be rerun,   no need to check if job is rerunnable
@@ -4448,6 +4451,7 @@ mom_running_jobs(int stream)
 				/* for any other disagreement of state except */
 				/* in Exiting or RUNNING, discard job         */
 				send_discard_job(stream, jobid, runver, "state mismatch");
+				pjob->ji_qs.ji_substate = JOB_SUBSTATE_WAITING_DISCARD;
 			}
 
 			/*
